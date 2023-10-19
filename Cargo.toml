@@ -1,0 +1,64 @@
+[package]
+name = "oracular"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["export-api"]
+export-api = []
+
+[dependencies]
+anyhow = "1.0"
+bytes = "1.3"
+candid = "0.9"
+derive_more = "0.99"
+env_logger = { version = "0.10.0", default-features = false }
+ethers-core = "2.0"
+ethereum-types = "0.14"
+hex = "0.4"
+log = "0.4"
+serde = "1.0"
+serde_bytes = "0.11"
+serde_json = "1.0"
+stable_deref_trait = "1.2"
+thiserror = "1.0"
+tokio = { version = "1.24", features = ["macros", "rt"] }
+
+# Bitifnity SDK
+eth-signer = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "eth-signer", tag = "v0.4.x", features = [
+    "ic_sign",
+] }
+did = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "did", tag = "v0.3.x" }
+evm-canister-client = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "evm-canister-client", tag = "v0.4.x" }
+register-evm-agent = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "register_evm_agent", tag = "v0.4.x" }
+
+# Canister SDK
+ic-canister = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-canister", tag = "v0.6.x" }
+ic-exports = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-exports", tag = "v0.6.x" }
+ic-helpers = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-helpers", tag = "v0.6.x" }
+ic-log = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-log", tag = "v0.6.x" }
+ic-canister-client = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-canister-client", tag = "v0.6.x" }
+ic-storage = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-storage", tag = "v0.6.x" }
+ic-stable-structures = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-stable-structures", tag = "v0.6.x" }
+ic-test-utils = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-test-utils", tag = "v0.6.x" }
+
+
+[profile.dev]
+debug = true
+
+# Set the settings for all dependencies (but not this crate itself or any workspace member).
+# This includes build dependencies.
+# Level range is from 0 (default for dev) to 3 (default for release)
+[profile.dev.package."*"]
+opt-level = 2
+
+# Set the settings for build scripts and proc-macros.
+[profile.dev.build-override]
+opt-level = 2
+
+[profile.release]
+#opt-level = "z"
+lto = true
+codegen-units = 1
