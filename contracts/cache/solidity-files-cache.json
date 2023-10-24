@@ -1,0 +1,87 @@
+{
+  "_format": "ethers-rs-sol-cache-3",
+  "paths": {
+    "artifacts": "/Users/yasirdev/Documents/Finity/oracular/target/debug/build/oracular-2ed948f15de4530f/out",
+    "build_infos": "contracts/build-info",
+    "sources": "Ownable.sol",
+    "tests": "test",
+    "scripts": "script",
+    "libraries": [
+      "lib"
+    ]
+  },
+  "files": {
+    "Ownable.sol": {
+      "lastModificationDate": 1697721813521,
+      "contentHash": "0ae1c0269d41ba211810162d5e89dd77",
+      "sourceName": "Ownable.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "shanghai",
+          "libraries": {}
+        }
+      },
+      "imports": [
+        "utils/Context.sol"
+      ],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+        "Ownable": {
+          "0.8.21+commit.d9974bed.Darwin.appleclang": "Ownable.sol/Ownable.json"
+        }
+      }
+    },
+    "utils/Context.sol": {
+      "lastModificationDate": 1697721802895,
+      "contentHash": "e107994bf5abd03af269fb439056a948",
+      "sourceName": "utils/Context.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "shanghai",
+          "libraries": {}
+        }
+      },
+      "imports": [],
+      "versionRequirement": "^0.8.20",
+      "artifacts": {
+        "Context": {
+          "0.8.21+commit.d9974bed.Darwin.appleclang": "Context.sol/Context.json"
+        }
+      }
+    }
+  }
+}

@@ -16,6 +16,7 @@ candid = "0.9"
 derive_more = "0.99"
 env_logger = { version = "0.10.0", default-features = false }
 ethers-core = "2.0"
+ethers = "2.0"
 ethereum-types = "0.14"
 hex = "0.4"
 log = "0.4"
@@ -30,7 +31,7 @@ tokio = { version = "1.24", features = ["macros", "rt"] }
 eth-signer = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "eth-signer", tag = "v0.4.x", features = [
     "ic_sign",
 ] }
-did = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "did", tag = "v0.3.x" }
+did = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "did", tag = "v0.4.x" }
 evm-canister-client = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "evm-canister-client", tag = "v0.4.x" }
 register-evm-agent = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "register_evm_agent", tag = "v0.4.x" }
 
@@ -43,7 +44,14 @@ ic-canister-client = { git = "https://github.com/bitfinity-network/canister-sdk"
 ic-storage = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-storage", tag = "v0.6.x" }
 ic-stable-structures = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-stable-structures", tag = "v0.6.x" }
 ic-test-utils = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-test-utils", tag = "v0.6.x" }
+url = "2"
+async-trait = "0.1"
+futures = "0.3"
 
+[build-dependencies]
+ethers = { version = "2.0", features = ["solc-full"] }
+ethers-solc = "2.0"
+anyhow = "1.0"
 
 [profile.dev]
 debug = true

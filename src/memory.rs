@@ -9,3 +9,6 @@ thread_local! {
 }
 
 pub const SETTINGS_MEMORY_ID: MemoryId = MemoryId::new(1);
+pub const PAIR_STORAGE_MEMORY_ID: MemoryId = MemoryId::new(2);
+pub const PAIR_MAP_ADDRESS_MEMORY_ID: MemoryId = MemoryId::new(3);
+pub const TX_CALLBACKS_MEMORY_ID: MemoryId = MemoryId::new(4);

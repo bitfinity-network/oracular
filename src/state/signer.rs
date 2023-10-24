@@ -4,13 +4,14 @@ use eth_signer::ic_sign::SigningKeyId;
 use eth_signer::sign_strategy::{
     ManagementCanisterSigner, SigningStrategy, TransactionSigner, TxSigner,
 };
+use ethers_core::k256::ecdsa::SigningKey;
 use ic_stable_structures::{get_memory_by_id, CellStructure, MemoryId, StableCell};
 
 use crate::memory::{MemoryType, MEMORY_MANAGER};
 
 /// A component that provides the access to the signer
 #[derive(Debug, Default, Clone)]
-pub struct SignerInfo {}
+pub struct SignerInfo;
 
 impl SignerInfo {
     /// Reset the signer with the given strategy and chain id.

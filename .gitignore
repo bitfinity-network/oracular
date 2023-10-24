@@ -18,3 +18,10 @@ Cargo.lock
 
 # Wasm files
 *.wasm
+
+# Solidity compiler files
+solidity/cache/
+solidity/out/
+
+# Ignores solidity development broadcast logs
+solidity/broadcast/
