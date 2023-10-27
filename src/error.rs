@@ -2,7 +2,9 @@ use candid::CandidType;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, CandidType, Serialize, Deserialize, Error)]
+use crate::parser;
+
+#[derive(Debug, CandidType, Serialize, Deserialize, Error, PartialEq, Eq)]
 pub enum Error {
     #[error("Internal error: {0}")]
     Internal(String),
@@ -17,9 +19,11 @@ pub enum Error {
     Http(String),
 
     #[error("pair not found")]
-    PairNotFound,
+    OracleNotFound,
     #[error("pair already exists")]
-    PairAlreadyExists,
+    OracleAlreadyExists,
+    #[error(transparent)]
+    ParseError(#[from] parser::ParseError),
 }
 
 impl From<String> for Error {

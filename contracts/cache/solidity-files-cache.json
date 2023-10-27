@@ -1,7 +1,7 @@
 {
   "_format": "ethers-rs-sol-cache-3",
   "paths": {
-    "artifacts": "/Users/yasirdev/Documents/Finity/oracular/target/debug/build/oracular-2ed948f15de4530f/out",
+    "artifacts": "/Users/yasirdev/Documents/Finity/oracular/target/wasm32-unknown-unknown/release/build/oracular-640a2f9d0214a99b/out",
     "build_infos": "contracts/build-info",
     "sources": "Ownable.sol",
     "tests": "test",

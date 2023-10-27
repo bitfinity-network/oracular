@@ -1,31 +1,21 @@
-mod pair_storage;
+mod oracle_storage;
 mod settings;
 mod signer;
 
-use std::borrow::Cow;
-use std::cell::RefCell;
+use candid::Principal;
 
-use candid::{CandidType, Principal};
-use did::codec;
-use ic_stable_structures::{
-    get_memory_by_id, CellStructure, MemoryId, StableCell, Storable, VirtualMemory,
-};
-use serde::{Deserialize, Serialize};
-
-use crate::memory::{MemoryType, MEMORY_MANAGER, SETTINGS_MEMORY_ID};
-
-use self::pair_storage::PairStorage;
+use self::oracle_storage::OracleStorage;
 pub use self::settings::Settings;
 use self::signer::SignerInfo;
 
-pub use self::pair_storage::Pair;
+pub use oracle_storage::UpdateOracleMetadata;
 
 #[derive(Debug, Default, Clone)]
 pub struct State {
     /// Transaction signing info.
     pub signer: SignerInfo,
     /// Pair storage.
-    pub pair_storage: PairStorage,
+    pub oracle_storage: OracleStorage,
 }
 
 impl State {
@@ -33,42 +23,36 @@ impl State {
     pub fn reset(&mut self, settings: Settings) {
         Settings::update(|s| *s = settings.clone());
 
-        self.signer
-            .reset(settings.signing_strategy, settings.evm_chain_id as u32)
-            .expect("failed to set signer");
+        self.signer.clear();
 
-        self.pair_storage.clear();
+        self.oracle_storage.clear();
     }
 
     pub fn owner(&self) -> Principal {
         Settings::read(|s| s.owner)
     }
 
-    pub fn evm(&self) -> Principal {
-        Settings::read(|s| s.evm)
-    }
-
     pub fn set_owner(&mut self, owner: Principal) {
         Settings::update(|s| s.owner = owner);
     }
 
-    pub fn set_evm(&mut self, evm: Principal) {
-        Settings::update(|s| s.evm = evm);
+    pub fn mut_oracle_storage(&mut self) -> &mut OracleStorage {
+        &mut self.oracle_storage
     }
 
-    pub fn chain_id(&self) -> u64 {
-        Settings::read(|s| s.evm_chain_id)
+    pub fn oracle_storage(&self) -> &OracleStorage {
+        &self.oracle_storage
     }
 
-    pub fn set_chain_id(&mut self, chain_id: u64) {
-        Settings::update(|s| s.evm_chain_id = chain_id);
+    pub fn ic_eth(&self) -> Principal {
+        Settings::read(|s| s.ic_eth)
     }
 
-    pub fn mut_pair_storage(&mut self) -> &mut PairStorage {
-        &mut self.pair_storage
+    pub fn set_ic_eth(&mut self, ic_eth: Principal) {
+        Settings::update(|s| s.ic_eth = ic_eth);
     }
 
-    pub fn pair_storage(&self) -> &PairStorage {
-        &self.pair_storage
+    pub fn signer(&self) -> &SignerInfo {
+        &self.signer
     }
 }

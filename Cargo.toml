@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["export-api"]
+default = []
 export-api = []
 
 [dependencies]
@@ -16,7 +16,6 @@ candid = "0.9"
 derive_more = "0.99"
 env_logger = { version = "0.10.0", default-features = false }
 ethers-core = "2.0"
-ethers = "2.0"
 ethereum-types = "0.14"
 hex = "0.4"
 log = "0.4"
@@ -28,25 +27,35 @@ thiserror = "1.0"
 tokio = { version = "1.24", features = ["macros", "rt"] }
 
 # Bitifnity SDK
-eth-signer = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "eth-signer", tag = "v0.4.x", features = [
+eth-signer = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "eth-signer", tag = "v0.5.x", features = [
     "ic_sign",
 ] }
-did = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "did", tag = "v0.4.x" }
-evm-canister-client = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "evm-canister-client", tag = "v0.4.x" }
-register-evm-agent = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "register_evm_agent", tag = "v0.4.x" }
+did = { git = "https://github.com/bitfinity-network/bitfinity-evm-sdk", package = "did", tag = "v0.5.x" }
+
 
 # Canister SDK
-ic-canister = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-canister", tag = "v0.6.x" }
-ic-exports = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-exports", tag = "v0.6.x" }
-ic-helpers = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-helpers", tag = "v0.6.x" }
-ic-log = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-log", tag = "v0.6.x" }
-ic-canister-client = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-canister-client", tag = "v0.6.x" }
-ic-storage = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-storage", tag = "v0.6.x" }
-ic-stable-structures = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-stable-structures", tag = "v0.6.x" }
-ic-test-utils = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-test-utils", tag = "v0.6.x" }
+ic-canister = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-canister", tag = "v0.8.x" }
+ic-exports = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-exports", tag = "v0.8.x" }
+ic-helpers = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-helpers", tag = "v0.8.x" }
+ic-log = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-log", tag = "v0.8.x" }
+ic-canister-client = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-canister-client", tag = "v0.8.x" }
+ic-stable-structures = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-stable-structures", tag = "v0.8.x" }
+
+once_cell = "1"
 url = "2"
 async-trait = "0.1"
 futures = "0.3"
+regex = "1.10"
+slotmap = { version = "1.0", features = ["serde"] }
+
+[dev-dependencies]
+ic-test-utils = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-test-utils", tag = "v0.8.x" }
+ic-canister-client = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-canister-client", tag = "v0.8.x", features = [
+    "state-machine-tests-client",
+] }
+ic-exports = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-exports", tag = "v0.8.x", features = [
+    "ic-test-state-machine",
+] }
 
 [build-dependencies]
 ethers = { version = "2.0", features = ["solc-full"] }

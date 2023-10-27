@@ -3,8 +3,7 @@ use std::cell::RefCell;
 
 use candid::{CandidType, Principal};
 use did::codec;
-use eth_signer::sign_strategy::SigningStrategy;
-use ic_stable_structures::{get_memory_by_id, Bound, CellStructure, StableCell, Storable};
+use ic_stable_structures::{Bound, CellStructure, StableCell, Storable};
 use serde::{Deserialize, Serialize};
 
 use crate::memory::{MemoryType, MEMORY_MANAGER, SETTINGS_MEMORY_ID};
@@ -12,37 +11,21 @@ use crate::memory::{MemoryType, MEMORY_MANAGER, SETTINGS_MEMORY_ID};
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct Settings {
     pub owner: Principal,
-    pub evm: Principal,
-    pub signing_strategy: SigningStrategy,
-    pub evm_chain_id: u64,
+    pub ic_eth: Principal,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             owner: Principal::management_canister(),
-            evm: Principal::management_canister(),
-            signing_strategy: SigningStrategy::Local {
-                private_key: [5; 32],
-            },
-            evm_chain_id: 355113,
+            ic_eth: Principal::management_canister(),
         }
     }
 }
 
 impl Settings {
-    pub fn new(
-        owner: Principal,
-        evm: Principal,
-        signing_strategy: SigningStrategy,
-        chain_id: u64,
-    ) -> Self {
-        Self {
-            owner,
-            evm,
-            evm_chain_id: chain_id,
-            signing_strategy,
-        }
+    pub fn new(owner: Principal, ic_eth: Principal) -> Self {
+        Self { owner, ic_eth }
     }
 
     pub fn read<F, T>(f: F) -> T
@@ -84,6 +67,6 @@ impl Storable for Settings {
 
 thread_local! {
     static SETTINGS_CELL: RefCell<StableCell<Settings, MemoryType>> = {
-        RefCell::new(StableCell::new(get_memory_by_id(&MEMORY_MANAGER, SETTINGS_MEMORY_ID), Settings::default()).expect("failed to initialize evm settings in stable memory"))
+        RefCell::new(StableCell::new(MEMORY_MANAGER.with(|mm| mm.get(SETTINGS_MEMORY_ID)), Settings::default()).expect("failed to initialize settings"))
     };
 }
