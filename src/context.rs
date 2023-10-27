@@ -4,7 +4,7 @@ use std::rc::Rc;
 use crate::error::{Error, Result};
 use crate::eth_rpc::Source;
 use crate::state::{Settings, State};
-use candid::Principal;
+
 use did::{Transaction, H160, U256};
 use eth_signer::sign_strategy::TransactionSigner;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
@@ -54,7 +54,7 @@ pub fn get_base_context(context: &Rc<RefCell<impl Context + 'static>>) -> Rc<Ref
 const DEFAULT_GAS_LIMIT: u64 = 30_000_000;
 
 pub async fn get_transaction(
-    principal: Principal,
+    user_address: H160,
     source: Source,
     to: Option<H160>,
     value: U256,
@@ -68,7 +68,7 @@ pub async fn get_transaction(
     // drop(context); // before the first await point
     let (signer, eth_client) = {
         let context = context.borrow();
-        let signer = context.get_state().signer.get_oracle_signer(principal)?;
+        let signer = context.get_state().signer.get_oracle_signer(user_address);
         let eth_client = context.get_ic_eth_client();
 
         (signer, eth_client)

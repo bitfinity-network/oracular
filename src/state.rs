@@ -23,8 +23,6 @@ impl State {
     pub fn reset(&mut self, settings: Settings) {
         Settings::update(|s| *s = settings.clone());
 
-        self.signer.clear();
-
         self.oracle_storage.clear();
     }
 

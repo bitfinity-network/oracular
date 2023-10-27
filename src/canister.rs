@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use crate::context::{get_base_context, get_transaction, Context, ContextImpl};
 
 use crate::error::{Error, Result};
-use crate::eth_rpc::{self, InitProvider, ProviderView, RegisterProvider, Source};
+use crate::eth_rpc::{self, InitProvider, Source};
 use crate::http::{self, transform};
 use crate::state::{Settings, State, UpdateOracleMetadata};
 
@@ -79,14 +79,6 @@ impl Oracular {
         self.with_state_mut(|state| state.reset(settings));
     }
 
-    /// Returns the address of the signer
-    #[update]
-    pub async fn get_user_address(&self, principal: Principal) -> Result<H160> {
-        let signer = self.with_state(|state| state.signer().clone());
-
-        signer.get_signer_address(principal)
-    }
-
     /// Returns the owner of the canister
     #[query]
     pub fn owner(&self) -> Principal {
@@ -134,9 +126,6 @@ impl Oracular {
             Error::Internal(format!("failed to recover public key: {:?}", e.to_string()))
         })?;
 
-        let signer = self.with_state(|state| state.signer().clone());
-        signer.add_signer(ic::caller(), address.into());
-
         Ok(address.into())
     }
 
@@ -165,12 +154,10 @@ impl Oracular {
     #[update]
     pub async fn update_oracle_metadata(
         &self,
+        user_address: H160,
         contract_address: H160,
         metadata: UpdateOracleMetadata,
     ) -> Result<()> {
-        let caller = ic::caller();
-        check_anonymous_principal(caller)?;
-
         // If all the values are None, then return an error
         if metadata.is_none() {
             return Err(Error::Internal(
@@ -181,13 +168,13 @@ impl Oracular {
         let old_md = self.with_state(|state| {
             state
                 .oracle_storage()
-                .get_oracle_by_address(caller, contract_address.clone())
+                .get_oracle_by_address(user_address.0.into(), contract_address.clone())
         })?;
         ic_exports::ic_cdk_timers::clear_timer(old_md.timer_id);
 
         let timer_id = Self::init_price_timer(
             get_base_context(&self.context.0),
-            caller,
+            user_address.0.into(),
             metadata.timestamp.unwrap_or(old_md.timer_interval),
             metadata.origin.clone().unwrap_or(old_md.origin),
             metadata.evm.clone().unwrap_or(old_md.evm),
@@ -196,7 +183,7 @@ impl Oracular {
 
         self.with_state_mut(|state| {
             state.mut_oracle_storage().update_oracle_metadata(
-                caller,
+                user_address,
                 contract_address,
                 Some(timer_id),
                 metadata,
@@ -218,13 +205,11 @@ impl Oracular {
     #[update]
     pub async fn create_oracle(
         &mut self,
+        user_address: H160,
         origin: Origin,
         timestamp: u64,
         destination: EvmDestination,
     ) -> Result<()> {
-        let caller = ic::caller();
-        check_anonymous_principal(caller)?;
-
         if let Origin::Evm(EvmOrigin { ref provider, .. }) = origin {
             // Check and register the provider
             eth_rpc::check_and_register_provider(provider, &get_base_context(&self.context.0))
@@ -241,7 +226,7 @@ impl Oracular {
         // Start the timer
         let timer_id = Self::init_price_timer(
             get_base_context(&self.context.0),
-            caller,
+            user_address.0.into(),
             timestamp,
             origin.clone(),
             destination.clone(),
@@ -250,9 +235,13 @@ impl Oracular {
 
         // Save the metadata
         self.with_state_mut(|state| {
-            state
-                .mut_oracle_storage()
-                .add_oracle(caller, origin, timestamp, timer_id, destination)
+            state.mut_oracle_storage().add_oracle(
+                user_address,
+                origin,
+                timestamp,
+                timer_id,
+                destination,
+            )
         });
 
         Ok(())
@@ -261,7 +250,7 @@ impl Oracular {
     /// Initializes the timer that will be used to update the price
     pub async fn init_price_timer(
         context: Rc<RefCell<dyn Context>>,
-        principal: Principal,
+        user_address: H160,
         timestamp: u64,
         origin: Origin,
         evm: EvmDestination,
@@ -269,11 +258,15 @@ impl Oracular {
         let timer_id = ic_exports::ic_cdk_timers::set_timer_interval(
             Duration::from_secs(timestamp),
             move || {
-                let future =
-                    Self::send_transaction(origin.clone(), principal, context.clone(), evm.clone())
-                        .unwrap_or_else(|e| {
-                            ic::print(format!("failed to send transaction: {:?}", e.to_string()))
-                        });
+                let future = Self::send_transaction(
+                    origin.clone(),
+                    user_address.0.into(),
+                    context.clone(),
+                    evm.clone(),
+                )
+                .unwrap_or_else(|e| {
+                    ic::print(format!("failed to send transaction: {:?}", e.to_string()))
+                });
 
                 ic_cdk::spawn(future);
             },
@@ -285,7 +278,7 @@ impl Oracular {
     /// Sends a transaction to the EVM
     async fn send_transaction(
         origin: Origin,
-        principal: Principal,
+        user_address: H160,
         context: Rc<RefCell<dyn Context>>,
         evm_destination: EvmDestination,
     ) -> Result<()> {
@@ -345,7 +338,7 @@ impl Oracular {
         ]);
 
         let transaction: ethers_core::types::Transaction = get_transaction(
-            principal,
+            user_address,
             source.clone(),
             Some(evm_destination.contract.0.into()),
             U256::zero(),

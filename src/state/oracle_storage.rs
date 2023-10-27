@@ -2,9 +2,8 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
-use candid::{CandidType, Principal};
+use candid::CandidType;
 
-use did::ic::StorablePrincipal;
 use did::H160;
 use ic_exports::ic_cdk_timers::TimerId;
 use ic_stable_structures::{
@@ -52,7 +51,7 @@ impl OracleStorage {
     #[allow(clippy::too_many_arguments)]
     pub fn add_oracle(
         &self,
-        principal: Principal,
+        user_address: H160,
         origin: Origin,
         timestamp: u64,
         timer_id: TimerId,
@@ -61,9 +60,7 @@ impl OracleStorage {
         ORACLE_STORAGE.with(|storage| {
             let storage = storage.borrow_mut();
 
-            let mut vec = storage
-                .get(&StorablePrincipal(principal))
-                .unwrap_or_default();
+            let mut vec = storage.get(&user_address).unwrap_or_default();
 
             vec.0.insert(
                 evm.contract.clone(),
@@ -79,15 +76,13 @@ impl OracleStorage {
 
     pub fn get_oracle_by_address(
         &self,
-        principal: Principal,
+        user_address: H160,
         evm_contract_address: H160,
     ) -> Result<OracleMetadata> {
         ORACLE_STORAGE.with(|storage| {
             let storage = storage.borrow();
 
-            let vec = storage
-                .get(&StorablePrincipal(principal))
-                .ok_or(Error::OracleNotFound)?;
+            let vec = storage.get(&user_address).ok_or(Error::OracleNotFound)?;
 
             vec.0
                 .get(&evm_contract_address)
@@ -96,28 +91,29 @@ impl OracleStorage {
         })
     }
 
-    pub fn get_oracles(&self) -> Vec<(Principal, VecMetadata)> {
+    pub fn get_oracles(&self) -> Vec<(H160, VecMetadata)> {
         ORACLE_STORAGE.with(|storage| {
             let storage = storage.borrow();
-            storage.iter().map(|(k, v)| (k.0, v.clone())).collect()
+            storage
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
         })
     }
 
     pub fn remove_oracle_by_address(
         &self,
-        principal: Principal,
+        user_address: H160,
         evm_contract_address: H160,
     ) -> Result<()> {
         ORACLE_STORAGE.with(|storage| {
             let mut storage = storage.borrow_mut();
-            let mut map = storage
-                .get(&StorablePrincipal(principal))
-                .ok_or(Error::OracleNotFound)?;
+            let mut map = storage.get(&user_address).ok_or(Error::OracleNotFound)?;
 
             map.0.remove(&evm_contract_address);
 
             if map.0.is_empty() {
-                storage.remove(&StorablePrincipal(principal));
+                storage.remove(&user_address);
             }
 
             Ok(())
@@ -126,7 +122,7 @@ impl OracleStorage {
 
     pub fn update_oracle_metadata(
         &mut self,
-        principal: Principal,
+        user_address: H160,
         evm_contract_address: H160,
         timer_id: Option<TimerId>,
         update_metadata: UpdateOracleMetadata,
@@ -134,9 +130,7 @@ impl OracleStorage {
         ORACLE_STORAGE.with(|storage| {
             let storage = storage.borrow_mut();
 
-            let mut vec_metadata = storage
-                .get(&StorablePrincipal(principal))
-                .ok_or(Error::OracleNotFound)?;
+            let mut vec_metadata = storage.get(&user_address).ok_or(Error::OracleNotFound)?;
 
             let metadata = vec_metadata
                 .0
@@ -167,7 +161,7 @@ impl OracleStorage {
 }
 
 thread_local! {
-    static ORACLE_STORAGE: RefCell<StableUnboundedMap<StorablePrincipal, VecMetadata, MemoryType>> = RefCell::new(StableUnboundedMap::new(MEMORY_MANAGER.with(|mm|mm.get(ORACLE_STORAGE_MEMORY_ID))));
+    static ORACLE_STORAGE: RefCell<StableUnboundedMap<H160, VecMetadata, MemoryType>> = RefCell::new(StableUnboundedMap::new(MEMORY_MANAGER.with(|mm|mm.get(ORACLE_STORAGE_MEMORY_ID))));
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, CandidType)]
