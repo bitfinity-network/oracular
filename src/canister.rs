@@ -1,17 +1,20 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
 
+use crate::http::{HttpRequest, HttpResponse};
 use candid::{CandidType, Principal};
 use did::{H160, U256};
 use ethers_core::types::Signature;
+use futures::TryFutureExt;
 use ic_canister_client::CanisterClient;
 
-use futures::TryFutureExt;
-
 use ic_exports::ic_cdk;
-use ic_exports::ic_cdk::api::management_canister::http_request::{HttpResponse, TransformArgs};
+use ic_exports::ic_cdk::api::management_canister::http_request::{
+    HttpResponse as MHttpResponse, TransformArgs,
+};
 
 use ethers_core::abi::ethabi;
 
@@ -19,6 +22,8 @@ use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
 use ic_exports::ic_cdk_timers::TimerId;
 use ic_exports::ic_kit::ic;
 use serde::{Deserialize, Serialize};
+use serde_bytes::ByteBuf;
+use serde_json::Value;
 
 use crate::context::{get_base_context, get_transaction, Context, ContextImpl};
 
@@ -116,8 +121,7 @@ impl Oracular {
     ///
     /// This is used for the users to sign the transactions using the threshold
     /// ECDSA
-    #[update]
-    pub fn recover_pubkey(&self, message: String, signature: String) -> Result<H160> {
+    pub fn recover_pubkey(message: String, signature: String) -> Result<H160> {
         let signature = Signature::from_str(&signature).map_err(|e| {
             Error::Internal(format!("failed to parse signature: {:?}", e.to_string()))
         })?;
@@ -129,11 +133,59 @@ impl Oracular {
         Ok(address.into())
     }
 
+    #[query]
+    fn http_request(&self, req: HttpRequest) -> HttpResponse {
+        match req.method.as_ref() {
+            "POST" => {
+                let body = serde_json::from_slice::<Value>(&req.body)
+                    .map_err(|e| Error::Http(format!("serde_json err: {e}")));
+
+                let body = match body {
+                    Ok(body) => body,
+                    Err(e) => return HttpResponse::error(400, e.to_string()),
+                };
+
+                let message = body
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| Error::Http("message is missing".to_string()));
+
+                let message = match message {
+                    Ok(message) => message,
+                    Err(e) => return HttpResponse::error(400, e.to_string()),
+                };
+
+                let signature = body
+                    .get("signature")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| Error::Http("signature is missing".to_string()));
+
+                let signature = match signature {
+                    Ok(signature) => signature,
+                    Err(e) => return HttpResponse::error(400, e.to_string()),
+                };
+
+                // Recover the public key from the given message and signature
+                let address = Self::recover_pubkey(message.to_string(), signature.to_string())
+                    .expect("failed to recover public key");
+
+                HttpResponse::new(
+                    200,
+                    HashMap::from([("content-type", "text/plain")]),
+                    ByteBuf::from(address.0.as_bytes()),
+                    None,
+                    None,
+                )
+            }
+            _ => HttpResponse::error(400, "Method not allowed".to_string()),
+        }
+    }
+
     /// Requirements for Http outcalls, used to ignore small differences in the data obtained
     /// by different nodes of the IC subnet to reach a consensus, more info:
     /// https://internetcomputer.org/docs/current/developer-docs/integrations/http_requests/http_requests-how-it-works#transformation-function
     #[query]
-    fn transform(&self, raw: TransformArgs) -> HttpResponse {
+    fn transform(&self, raw: TransformArgs) -> MHttpResponse {
         transform(raw)
     }
 

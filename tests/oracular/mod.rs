@@ -89,3 +89,26 @@ async fn test_create_oracle_http_origin() {
 
     // assert_eq!(res, alice());
 }
+
+#[tokio::test]
+async fn test_recover_pub_key() {
+    let ctx = StateMachineTestContext::reset_and_lock().await;
+    let client = ctx.client(ctx.canisters.oracular, ctx.admin_name());
+
+    let signed_message = ethers_core::utils::hash_message("hello world");
+    let rand_signature = ethereum_types::Signature::random();
+
+    // let signature = ethers_core::types::Signature::
+
+    let res = client
+        .update::<(Principal,), Result<()>>("set_owner", (alice(),))
+        .await
+        .unwrap();
+
+    assert!(res.is_ok());
+
+    // Assert owner is set
+    let res = client.query::<(), Principal>("owner", ()).await.unwrap();
+
+    assert_eq!(res, alice());
+}
