@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::context::Context;
 
 use crate::error::Result;
+use ic_exports::ic_kit::ic;
 
 #[derive(Clone, Debug, CandidType, Deserialize)]
 pub enum Source {
@@ -126,6 +127,16 @@ pub async fn check_and_register_provider(
     if !check_if_provider_exists(provider, context).await? {
         register_provider(provider, context).await?;
     }
+
+    Ok(())
+}
+
+pub async fn authorize_oracular(auth: Auth, context: &Rc<RefCell<dyn Context>>) -> Result<()> {
+    let eth_client = context.borrow().get_ic_eth_client();
+
+    eth_client
+        .update::<(Principal, Auth), ()>("authorize", (ic::id(), auth))
+        .await?;
 
     Ok(())
 }

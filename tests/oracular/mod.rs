@@ -34,7 +34,14 @@ async fn set_owner_access() {
 #[tokio::test]
 async fn test_create_oracle_http_origin() {
     let ctx = StateMachineTestContext::reset_and_lock().await;
+
     let client = ctx.client(ctx.canisters.oracular, ctx.admin_name());
+
+    client
+        .update::<(), Result<()>>("authorize_oracular", ())
+        .await
+        .unwrap()
+        .unwrap();
 
     let origin = Origin::Http(HttpOrigin {
         url: String::from("https://api.coinbase.com/v2/prices/BTC-ETH/spot"),

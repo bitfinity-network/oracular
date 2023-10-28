@@ -28,7 +28,7 @@ use serde_json::Value;
 use crate::context::{get_base_context, get_transaction, Context, ContextImpl};
 
 use crate::error::{Error, Result};
-use crate::eth_rpc::{self, InitProvider, Source};
+use crate::eth_rpc::{self, Auth, InitProvider, Source};
 use crate::http::{self, transform};
 use crate::state::{Settings, State, UpdateOracleMetadata};
 
@@ -71,6 +71,18 @@ impl Oracular {
         let ctx = self.context.0.borrow();
         let res = f(&mut ctx.mut_state());
         res
+    }
+
+    #[update]
+    pub async fn authorize_oracular(&self) -> Result<()> {
+        let context = get_base_context(&self.context.0);
+
+        eth_rpc::authorize_oracular(Auth::Admin, &context).await?;
+        eth_rpc::authorize_oracular(Auth::RegisterProvider, &context).await?;
+        eth_rpc::authorize_oracular(Auth::Rpc, &context).await?;
+        eth_rpc::authorize_oracular(Auth::FreeRpc, &context).await?;
+
+        Ok(())
     }
 
     #[init]
@@ -173,7 +185,6 @@ impl Oracular {
                     200,
                     HashMap::from([("content-type", "text/plain")]),
                     ByteBuf::from(address.0.as_bytes()),
-                    None,
                     None,
                 )
             }

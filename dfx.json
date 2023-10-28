@@ -15,7 +15,7 @@
       "build": "",
       "type": "custom",
       "candid": ".artifact/oracular.did",
-      "wasm": ".artifact/oracular_dev.wasm.gz"
+      "wasm": ".artifact/oracular.wasm.gz"
     }
   }
 }

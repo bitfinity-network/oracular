@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use candid::{CandidType, Func};
+use candid::CandidType;
 use did::U256;
 use ic_exports::ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod,
@@ -17,20 +17,6 @@ use crate::error::{Error, Result};
 use crate::parser::ValueParser;
 
 pub const PRICE_MULTIPLE: f64 = 1_0000_0000.0;
-
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub struct Token {}
-
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub enum StreamingStrategy {
-    Callback { callback: Func, token: Token },
-}
-
-#[derive(Clone, Debug, CandidType, Deserialize)]
-pub struct StreamingCallbackHttpResponse {
-    pub body: ByteBuf,
-    pub token: Option<Token>,
-}
 
 /// The important components of an HTTP request.
 #[derive(Clone, Debug, CandidType, Deserialize)]
@@ -54,8 +40,6 @@ pub struct HttpResponse {
     pub headers: HashMap<&'static str, &'static str>,
     /// The response body.
     pub body: ByteBuf,
-    /// The strategy for streaming the rest of the data, if the full response is to be streamed.
-    pub streaming_strategy: Option<StreamingStrategy>,
     /// Whether the query call should be upgraded to an update call.
     pub upgrade: Option<bool>,
 }
@@ -65,14 +49,12 @@ impl HttpResponse {
         status_code: u16,
         headers: HashMap<&'static str, &'static str>,
         body: ByteBuf,
-        streaming_strategy: Option<StreamingStrategy>,
         upgrade: Option<bool>,
     ) -> Self {
         Self {
             status_code,
             headers,
             body,
-            streaming_strategy,
             upgrade,
         }
     }
@@ -82,7 +64,6 @@ impl HttpResponse {
             status_code,
             headers: HashMap::new(),
             body: ByteBuf::from(message.into_bytes()),
-            streaming_strategy: None,
             upgrade: None,
         }
     }
