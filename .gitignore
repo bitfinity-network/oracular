@@ -25,3 +25,6 @@ solidity/out/
 
 # Ignores solidity development broadcast logs
 solidity/broadcast/
+
+.dfx
+.vscode
