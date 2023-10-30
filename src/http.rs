@@ -133,6 +133,14 @@ pub async fn call_jsonrpc(
     params: Value,
     max_response_bytes: Option<u64>,
 ) -> Result<Value> {
+    let payload_json = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": method,
+        "params": params,
+    });
+
+    ic_cdk::println!("payload_json: {:?}", payload_json);
     let body = serde_json::to_vec(&serde_json::json!({
         "jsonrpc": "2.0",
         "id": 1,
