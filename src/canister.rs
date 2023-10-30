@@ -24,7 +24,7 @@ use serde_json::Value;
 use crate::context::{get_base_context, Context, ContextImpl};
 use crate::error::{Error, Result};
 use crate::http::{self, transform, HttpRequest, HttpResponse};
-use crate::provider::{get_transaction, Provider, UPDATE_PRICE};
+use crate::provider::{self, get_transaction, Provider, UPDATE_PRICE};
 use crate::state::oracle_storage::OracleMetadata;
 use crate::state::{Settings, State, UpdateOracleMetadata};
 /// Type alias for the shared mutable context implementation we use in the canister
@@ -361,19 +361,18 @@ impl Oracular {
                 ref target_address,
                 ref method,
             }) => {
+                let data = provider::function_selector(method, &[]).encode_input(&[])?;
+
+                let data_hex = did::Bytes::from(data).to_hex_str();
                 let params = serde_json::json!([{
-                    "to": format!("0x{}", H160::from(target_address.0)),
-                    "data": format!("0x{:?}", ethabi::encode(&[ethabi::Token::String(method.to_owned())]).to_vec())
+                    "to": target_address,
+                    "data": data_hex,
                 }]);
 
                 let res =
                     http::call_jsonrpc(&provider.hostname, "eth_call", params, Some(80000)).await?;
 
-                let res = serde_json::from_value::<U256>(res)?;
-
-                ic_cdk::print(format!("res: {:?}", res));
-
-                res
+                serde_json::from_value::<U256>(res)?
             }
             Origin::Http(HttpOrigin {
                 ref url,
@@ -397,7 +396,6 @@ impl Oracular {
         let provider = Provider {
             chain_id: *chain_id,
             hostname: hostname.to_string(),
-            credential_path: String::default(),
         };
 
         let transaction = get_transaction(
@@ -415,7 +413,7 @@ impl Oracular {
         let response =
             http::call_jsonrpc(hostname, "eth_sendRawTransaction", params, Some(80000)).await?;
 
-        let response = serde_json::from_value::<H256>(response).unwrap();
+        let response = serde_json::from_value::<H256>(response)?;
 
         ic_cdk::print(format!("response: {:?}", response));
         Ok(())

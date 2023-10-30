@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use candid::CandidType;
 use did::U256;
-use ic_exports::ic_cdk;
+
 use ic_exports::ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod,
     HttpResponse as MHttpResponse, TransformArgs, TransformContext,
@@ -133,14 +133,6 @@ pub async fn call_jsonrpc(
     params: Value,
     max_response_bytes: Option<u64>,
 ) -> Result<Value> {
-    let payload_json = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": method,
-        "params": params,
-    });
-
-    ic_cdk::println!("payload_json: {:?}", payload_json);
     let body = serde_json::to_vec(&serde_json::json!({
         "jsonrpc": "2.0",
         "id": 1,
@@ -155,7 +147,7 @@ pub async fn call_jsonrpc(
 
     if res.status != 200 {
         return Err(Error::Internal(format!(
-            "url is not valid, status: {} res: {}",
+            "error calling jsonrpc, status: {} res: {}",
             res.status,
             String::from_utf8(res.body).unwrap_or_default()
         )));
@@ -182,8 +174,8 @@ pub async fn get_price(url: &str, json_path: &str) -> Result<U256> {
     let res = http_outcall(url, HttpMethod::GET, None, cost, Some(8000)).await?;
 
     if res.status != 200 {
-        return Err(Error::Internal(format!(
-            "url is not valid, status: {} res: {}",
+        return Err(Error::Http(format!(
+            "error fetching price, status: {} res: {}",
             res.status,
             String::from_utf8(res.body).unwrap_or_default()
         )));

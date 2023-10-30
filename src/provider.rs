@@ -18,7 +18,6 @@ use crate::http;
 pub struct Provider {
     pub chain_id: u64,
     pub hostname: String,
-    pub credential_path: String,
 }
 
 pub async fn get_transaction(
@@ -126,3 +125,15 @@ pub static UPDATE_PRICE: Lazy<Function> = Lazy::new(|| Function {
     constant: None,
     state_mutability: StateMutability::NonPayable,
 });
+
+#[allow(deprecated)]
+/// Returns the function selector for the given function name and parameters.
+pub fn function_selector(name: &str, params: &[Param]) -> Function {
+    Function {
+        name: name.to_owned(),
+        inputs: params.to_vec(),
+        outputs: vec![],
+        constant: None,
+        state_mutability: StateMutability::NonPayable,
+    }
+}

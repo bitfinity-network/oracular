@@ -49,7 +49,6 @@ async fn test_create_oracle_http_origin() {
         provider: Provider {
             chain_id: 355113,
             hostname: "https://127.0.0.1:8545".to_string(),
-            credential_path: String::default(),
         },
     };
 
