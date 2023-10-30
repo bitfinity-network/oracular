@@ -7,7 +7,7 @@ use std::time::Duration;
 use candid::{CandidType, Principal};
 use did::{H160, H256, U256};
 use eth_signer::sign_strategy::TransactionSigner;
-use ethers_core::abi::{ethabi, AbiEncode};
+use ethers_core::abi::ethabi;
 use ethers_core::types::Signature;
 use futures::TryFutureExt;
 use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
@@ -21,11 +21,10 @@ use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 use serde_json::Value;
 
-use crate::context::{get_base_context, get_transaction, Context, ContextImpl};
+use crate::context::{get_base_context, Context, ContextImpl};
 use crate::error::{Error, Result};
-use crate::eth_rpc::{InitProvider, Source};
-use crate::gen;
 use crate::http::{self, transform, HttpRequest, HttpResponse};
+use crate::provider::{get_transaction, Provider, UPDATE_PRICE};
 use crate::state::oracle_storage::OracleMetadata;
 use crate::state::{Settings, State, UpdateOracleMetadata};
 /// Type alias for the shared mutable context implementation we use in the canister
@@ -370,7 +369,7 @@ impl Oracular {
                 let res =
                     http::call_jsonrpc(&provider.hostname, "eth_call", params, Some(80000)).await?;
 
-                let res = serde_json::from_value::<U256>(res).unwrap();
+                let res = serde_json::from_value::<U256>(res)?;
 
                 ic_cdk::print(format!("res: {:?}", res));
 
@@ -385,34 +384,31 @@ impl Oracular {
         let (ref hostname, ref chain_id) = match origin {
             Origin::Evm(_) => (
                 &evm_destination.provider.hostname,
-                Some(evm_destination.provider.chain_id),
+                evm_destination.provider.chain_id,
             ),
             Origin::Http(_) => (
                 &evm_destination.provider.hostname,
-                Some(evm_destination.provider.chain_id),
+                evm_destination.provider.chain_id,
             ),
         };
 
-        let source = Source::Service {
-            hostname: hostname.to_string(),
+        let data = UPDATE_PRICE.encode_input(&[ethabi::Token::Int(response.into())])?;
+
+        let provider = Provider {
             chain_id: *chain_id,
+            hostname: hostname.to_string(),
+            credential_path: String::default(),
         };
 
-        let data = gen::PriceFeedApiCalls::UpdatePrice(gen::UpdatePriceCall {
-            price: response.into(),
-        })
-        .encode();
-
-        let transaction: ethers_core::types::Transaction = get_transaction(
+        let transaction = get_transaction(
             user_address,
-            source.clone(),
+            provider,
             Some(evm_destination.contract.0.into()),
             U256::zero(),
             data,
             &context,
         )
-        .await?
-        .into();
+        .await?;
 
         let params = serde_json::json!([format!("0x{}", hex::encode(transaction.rlp()))]);
 
@@ -454,7 +450,7 @@ pub enum Origin {
 #[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
 pub struct EvmOrigin {
     /// The EVM provider that will be used to fetch the data
-    pub provider: InitProvider,
+    pub provider: Provider,
     /// The address of the contract that will be called
     pub target_address: H160,
     /// The method that will be called on the contract
@@ -476,7 +472,7 @@ pub struct EvmDestination {
     /// The address of the contract that will be called
     pub contract: H160,
     /// The EVM provider that will be used to fetch the data
-    pub provider: InitProvider,
+    pub provider: Provider,
 }
 
 /// inspect function to check whether the provided principal is anonymous

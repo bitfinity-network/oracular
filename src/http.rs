@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use candid::CandidType;
 use did::U256;
+use ic_exports::ic_cdk;
 use ic_exports::ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod,
     HttpResponse as MHttpResponse, TransformArgs, TransformContext,
@@ -140,7 +141,7 @@ pub async fn call_jsonrpc(
     }))
     .map_err(|e| Error::Http(format!("serde_json err: {e}")))?;
 
-    let cost = get_request_costs(url, body.len(), max_response_bytes.unwrap_or(0));
+    let cost = get_request_costs(url, body.len(), max_response_bytes.unwrap_or(8000));
 
     let res = http_outcall(url, HttpMethod::POST, Some(body), cost, max_response_bytes).await?;
 

@@ -5,14 +5,8 @@ export RUST_BACKTRACE=full
 # Configuration variables
 WASM_DIR=".artifact"
 
-# This is the hash of a recent commit on the https://github.com/dfinity/ic repository.
-# It is used to identify the IC canisters to download.
-# To be updated periodically to use the latest version.
-
 # Initial setup
 initialize_env() {
-
-    echo "IC_HASH: $IC_HASH"
 
     if [ ! -f "./Cargo.toml" ]; then
         echo "Expecting to run from the cargo root directory, current directory is: $(pwd)"
@@ -50,7 +44,7 @@ build_canister() {
 
 main() {
     # initialize_env
-    echo "Getting ETH RPC Binaries"
+
     echo "Building WASM modules"
     build_canister "oracular" "export-api" "$WASM_DIR" "oracular.wasm" "oracular"
 

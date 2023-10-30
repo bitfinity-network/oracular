@@ -3,15 +3,13 @@ use crate::canister::Oracular;
 pub mod canister;
 mod context;
 pub mod error;
-pub mod eth_rpc;
 mod http;
 mod memory;
 mod parser;
+pub mod provider;
 mod state;
 
 pub mod constants;
-
-pub mod gen;
 
 pub fn idl() -> String {
     let oracle_idl = Oracular::idl();

@@ -4,7 +4,7 @@ use ic_canister_client::CanisterClient;
 use ic_exports::ic_kit::mock_principals::alice;
 use oracular::canister::{EvmDestination, HttpOrigin, Origin};
 use oracular::error::Result;
-use oracular::eth_rpc::InitProvider;
+use oracular::provider::Provider;
 
 use crate::context::state_machine::StateMachineTestContext;
 use crate::context::TestContext;
@@ -46,7 +46,7 @@ async fn test_create_oracle_http_origin() {
 
     let destination = EvmDestination {
         contract: H160::from_hex_str("0x637F877db257ccba80B1fe06b0bEA039cd92C736").unwrap(),
-        provider: InitProvider {
+        provider: Provider {
             chain_id: 355113,
             hostname: "https://127.0.0.1:8545".to_string(),
             credential_path: String::default(),

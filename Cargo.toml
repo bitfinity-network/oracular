@@ -48,7 +48,7 @@ futures = "0.3"
 regex = "1.10"
 slotmap = { version = "1.0", features = ["serde"] }
 jsonrpc-core = "18.0"
-ethers = { version = "2.0", features = ["solc-full"] }
+
 
 [dev-dependencies]
 ic-test-utils = { git = "https://github.com/bitfinity-network/canister-sdk", package = "ic-test-utils", tag = "v0.8.x" }
@@ -60,8 +60,7 @@ ic-exports = { git = "https://github.com/bitfinity-network/canister-sdk", packag
 ] }
 
 [build-dependencies]
-ethers = { version = "2.0", features = ["solc-full"] }
-ethers-solc = "2.0"
+ethers = { version = "2.0", features = ["solc-full", "ethers-solc"] }
 anyhow = "1.0"
 
 [profile.dev]
@@ -78,6 +77,6 @@ opt-level = 2
 opt-level = 2
 
 [profile.release]
-#opt-level = "z"
+opt-level = "z"
 lto = true
 codegen-units = 1

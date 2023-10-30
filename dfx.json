@@ -1,16 +1,5 @@
 {
   "canisters": {
-    "eth_rpc": {
-      "build": "",
-      "type": "custom",
-      "candid": ".artifact/eth_rpc.did",
-      "wasm": ".artifact/eth_rpc_dev.wasm.gz",
-      "remote": {
-        "id": {
-          "ic": "6yxaq-riaaa-aaaap-abkpa-cai"
-        }
-      }
-    },
     "oracular": {
       "build": "",
       "type": "custom",

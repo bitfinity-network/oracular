@@ -20,8 +20,10 @@ pub enum Error {
 
     #[error("pair not found")]
     OracleNotFound,
+
     #[error("pair already exists")]
     OracleAlreadyExists,
+
     #[error(transparent)]
     ParseError(#[from] parser::ParseError),
 
@@ -45,6 +47,12 @@ impl From<ic_canister_client::CanisterClientError> for Error {
 
 impl From<serde_json::Error> for Error {
     fn from(value: serde_json::Error) -> Self {
+        Self::Internal(value.to_string())
+    }
+}
+
+impl From<ethers_core::abi::Error> for Error {
+    fn from(value: ethers_core::abi::Error) -> Self {
         Self::Internal(value.to_string())
     }
 }
