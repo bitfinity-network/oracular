@@ -1,24 +1,20 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 use std::str::FromStr;
 use std::time::Duration;
 
-use crate::http::{HttpRequest, HttpResponse};
 use candid::{CandidType, Principal};
-use did::{H160, U256};
+use did::{H160, H256, U256};
+use eth_signer::sign_strategy::TransactionSigner;
+use ethers_core::abi::{ethabi, AbiEncode};
 use ethers_core::types::Signature;
 use futures::TryFutureExt;
-use ic_canister_client::CanisterClient;
-
+use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
 use ic_exports::ic_cdk;
 use ic_exports::ic_cdk::api::management_canister::http_request::{
     HttpResponse as MHttpResponse, TransformArgs,
 };
-
-use ethers_core::abi::ethabi;
-
-use ic_canister::{generate_idl, init, query, update, Canister, Idl, PreUpdate};
 use ic_exports::ic_cdk_timers::TimerId;
 use ic_exports::ic_kit::ic;
 use serde::{Deserialize, Serialize};
@@ -26,16 +22,12 @@ use serde_bytes::ByteBuf;
 use serde_json::Value;
 
 use crate::context::{get_base_context, get_transaction, Context, ContextImpl};
-
 use crate::error::{Error, Result};
-use crate::eth_rpc::{self, Auth, InitProvider, Source};
-use crate::http::{self, transform};
+use crate::eth_rpc::{InitProvider, Source};
+use crate::gen;
+use crate::http::{self, transform, HttpRequest, HttpResponse};
+use crate::state::oracle_storage::OracleMetadata;
 use crate::state::{Settings, State, UpdateOracleMetadata};
-
-/// ETH RPC canister ID
-/// 6yxaq-riaaa-aaaap-abkpa-cai
-pub const ETH_RPC_CANISTER: Principal = Principal::from_slice(&[0, 0, 0, 0, 1, 224, 10, 158, 1, 1]);
-
 /// Type alias for the shared mutable context implementation we use in the canister
 type SharedContext = Rc<RefCell<ContextImpl>>;
 
@@ -56,8 +48,6 @@ impl PreUpdate for Oracular {}
 pub struct InitData {
     /// The owner of the canister
     pub owner: Principal,
-    /// The ETH RPC canister
-    pub ic_eth_rpc: Option<Principal>,
 }
 
 impl Oracular {
@@ -73,25 +63,11 @@ impl Oracular {
         res
     }
 
-    #[update]
-    pub async fn authorize_oracular(&self) -> Result<()> {
-        let context = get_base_context(&self.context.0);
-
-        eth_rpc::authorize_oracular(Auth::Admin, &context).await?;
-        eth_rpc::authorize_oracular(Auth::RegisterProvider, &context).await?;
-        eth_rpc::authorize_oracular(Auth::Rpc, &context).await?;
-        eth_rpc::authorize_oracular(Auth::FreeRpc, &context).await?;
-
-        Ok(())
-    }
-
     #[init]
     pub fn init(&mut self, data: InitData) {
-        let eth_rpc = data.ic_eth_rpc.unwrap_or(ETH_RPC_CANISTER);
-        let settings = Settings::new(data.owner, eth_rpc);
+        let settings = Settings::new(data.owner);
 
         check_anonymous_principal(data.owner).expect("invalid owner");
-        check_anonymous_principal(eth_rpc).expect("invalid ic_eth");
 
         self.with_state_mut(|state| state.reset(settings));
     }
@@ -113,19 +89,46 @@ impl Oracular {
         Ok(())
     }
 
-    /// Sets the ETH principal
-    #[update]
-    pub fn set_eth_principal(&mut self, eth_principal: Principal) -> Result<()> {
-        check_anonymous_principal(eth_principal)?;
-        self.check_owner(ic::caller())?;
-
-        self.with_state_mut(|state| state.set_ic_eth(eth_principal));
-        Ok(())
+    #[query]
+    pub fn get_all_oracles(&self) -> Vec<(H160, BTreeMap<H160, OracleMetadata>)> {
+        self.with_state(|state| state.oracle_storage().get_oracles())
     }
 
     #[query]
-    pub fn eth_principal(&self) -> Principal {
-        self.with_state(|state| state.ic_eth())
+    pub fn get_user_oracles(&self, user_address: H160) -> Result<Vec<(H160, OracleMetadata)>> {
+        let oracles =
+            self.with_state(|state| state.oracle_storage().get_user_oracles(user_address))?;
+
+        Ok(oracles)
+    }
+
+    #[update]
+    pub async fn get_address(&self, address: H160) -> Result<H160> {
+        let signer = {
+            self.context
+                .0
+                .borrow()
+                .get_state()
+                .signer
+                .get_oracle_signer(address)
+        };
+
+        Ok(signer.get_address().await?)
+    }
+
+    #[query]
+    pub fn get_oracle_metadata(
+        &self,
+        user_address: H160,
+        contract_address: H160,
+    ) -> Result<OracleMetadata> {
+        let metadata = self.with_state(|state| {
+            state
+                .oracle_storage()
+                .get_oracle_by_address(user_address, contract_address)
+        })?;
+
+        Ok(metadata)
     }
 
     /// Recovers the public key from the given message and signature
@@ -147,48 +150,63 @@ impl Oracular {
 
     #[query]
     fn http_request(&self, req: HttpRequest) -> HttpResponse {
-        match req.method.as_ref() {
-            "POST" => {
-                let body = serde_json::from_slice::<Value>(&req.body)
-                    .map_err(|e| Error::Http(format!("serde_json err: {e}")));
+        if req.method.as_ref() != "POST" {
+            return HttpResponse::error(400, "Method not allowed".to_string());
+        }
 
-                let body = match body {
-                    Ok(body) => body,
-                    Err(e) => return HttpResponse::error(400, e.to_string()),
-                };
+        HttpResponse {
+            status_code: 204,
+            headers: HashMap::new(),
+            body: ByteBuf::new(),
+            upgrade: Some(true),
+        }
+    }
 
+    #[update]
+    pub async fn http_request_update(&self, req: HttpRequest) -> HttpResponse {
+        let body = serde_json::from_slice::<Value>(&req.body)
+            .map_err(|e| Error::Http(format!("serde_json err: {}", e)))
+            .and_then(|body| {
                 let message = body
                     .get("message")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| Error::Http("message is missing".to_string()));
-
-                let message = match message {
-                    Ok(message) => message,
-                    Err(e) => return HttpResponse::error(400, e.to_string()),
-                };
-
+                    .ok_or_else(|| Error::Http("message is missing".to_string()))?;
                 let signature = body
                     .get("signature")
                     .and_then(|v| v.as_str())
-                    .ok_or_else(|| Error::Http("signature is missing".to_string()));
+                    .ok_or_else(|| Error::Http("signature is missing".to_string()))?;
+                Ok((message.to_string(), signature.to_string()))
+            });
 
-                let signature = match signature {
-                    Ok(signature) => signature,
-                    Err(e) => return HttpResponse::error(400, e.to_string()),
-                };
+        match body {
+            Ok((message, signature)) => {
+                let address =
+                    Self::recover_pubkey(message, signature).expect("failed to recover public key");
 
-                // Recover the public key from the given message and signature
-                let address = Self::recover_pubkey(message.to_string(), signature.to_string())
-                    .expect("failed to recover public key");
+                let signer = self
+                    .context
+                    .0
+                    .borrow()
+                    .get_state()
+                    .signer
+                    .get_oracle_signer(address);
 
-                HttpResponse::new(
-                    200,
-                    HashMap::from([("content-type", "text/plain")]),
-                    ByteBuf::from(address.0.as_bytes()),
-                    None,
-                )
+                let address = signer
+                    .get_address()
+                    .await
+                    .map_err(|e| Error::Internal(format!("failed to get address: {e}")));
+
+                match address {
+                    Ok(address) => HttpResponse::new(
+                        200,
+                        HashMap::from([("content-type", "text/plain")]),
+                        ByteBuf::from(address.0.as_bytes()),
+                        None,
+                    ),
+                    Err(e) => HttpResponse::error(400, e.to_string()),
+                }
             }
-            _ => HttpResponse::error(400, "Method not allowed".to_string()),
+            Err(e) => HttpResponse::error(400, e.to_string()),
         }
     }
 
@@ -233,7 +251,13 @@ impl Oracular {
                 .oracle_storage()
                 .get_oracle_by_address(user_address.0.into(), contract_address.clone())
         })?;
-        ic_exports::ic_cdk_timers::clear_timer(old_md.timer_id);
+
+        let timer_id = self.with_state(|state| {
+            state
+                .oracle_storage()
+                .get_timer_id_by_address(user_address.0.into(), contract_address.clone())
+        })?;
+        ic_exports::ic_cdk_timers::clear_timer(timer_id);
 
         let timer_id = Self::init_price_timer(
             get_base_context(&self.context.0),
@@ -273,19 +297,6 @@ impl Oracular {
         timestamp: u64,
         destination: EvmDestination,
     ) -> Result<()> {
-        if let Origin::Evm(EvmOrigin { ref provider, .. }) = origin {
-            // Check and register the provider
-            eth_rpc::check_and_register_provider(provider, &get_base_context(&self.context.0))
-                .await?;
-        }
-
-        // Register the destination provider
-        eth_rpc::check_and_register_provider(
-            &destination.provider,
-            &get_base_context(&self.context.0),
-        )
-        .await?;
-
         // Start the timer
         let timer_id = Self::init_price_timer(
             get_base_context(&self.context.0),
@@ -345,33 +356,25 @@ impl Oracular {
         context: Rc<RefCell<dyn Context>>,
         evm_destination: EvmDestination,
     ) -> Result<()> {
-        let eth_client = context.borrow().get_ic_eth_client();
-
         let response = match origin {
             Origin::Evm(EvmOrigin {
                 ref provider,
                 ref target_address,
                 ref method,
             }) => {
-                let json_rpc_payload = format!(
-                    r#"[{{"jsonrpc":"2.0","id":"67","method":"eth_call","params":[{{"to":"0x{}","data":"0x{:?}"}},"latest"]}}]"#,
-                    H160::from(target_address.0),
-                    ethabi::encode(&[ethabi::Token::String(method.to_owned())]).to_vec()
-                );
+                let params = serde_json::json!([{
+                    "to": format!("0x{}", H160::from(target_address.0)),
+                    "data": format!("0x{:?}", ethabi::encode(&[ethabi::Token::String(method.to_owned())]).to_vec())
+                }]);
 
-                let source = Source::Service {
-                    hostname: provider.hostname.clone(),
-                    chain_id: Some(provider.chain_id),
-                };
+                let res =
+                    http::call_jsonrpc(&provider.hostname, "eth_call", params, Some(80000)).await?;
 
-                let res = eth_client
-                    .update::<(Source, String, u64), String>(
-                        "request",
-                        (source, json_rpc_payload, 80000),
-                    )
-                    .await?;
+                let res = serde_json::from_value::<U256>(res).unwrap();
 
-                U256::from_hex_str(&res)?
+                ic_cdk::print(format!("res: {:?}", res));
+
+                res
             }
             Origin::Http(HttpOrigin {
                 ref url,
@@ -395,10 +398,10 @@ impl Oracular {
             chain_id: *chain_id,
         };
 
-        let data = ethabi::encode(&[
-            ethabi::Token::String("updatePrice(uint256)".to_string()),
-            ethabi::Token::Tuple(vec![ethabi::Token::Uint(response.into())]),
-        ]);
+        let data = gen::PriceFeedApiCalls::UpdatePrice(gen::UpdatePriceCall {
+            price: response.into(),
+        })
+        .encode();
 
         let transaction: ethers_core::types::Transaction = get_transaction(
             user_address,
@@ -411,16 +414,14 @@ impl Oracular {
         .await?
         .into();
 
-        let json_rpc_payload = format!(
-            r#"[{{"jsonrpc":"2.0","id":"67","method":"eth_sendRawTransaction","params":["0x{}"]}}]"#,
-            hex::encode(transaction.rlp())
-        );
+        let params = serde_json::json!([format!("0x{}", hex::encode(transaction.rlp()))]);
 
-        let response = eth_client
-            .update::<(Source, String, u64), String>("request", (source, json_rpc_payload, 80000))
-            .await?;
+        let response =
+            http::call_jsonrpc(hostname, "eth_sendRawTransaction", params, Some(80000)).await?;
 
-        ic::print(format!("response: {:?}", response));
+        let response = serde_json::from_value::<H256>(response).unwrap();
+
+        ic_cdk::print(format!("response: {:?}", response));
         Ok(())
     }
 
@@ -489,14 +490,13 @@ fn check_anonymous_principal(principal: Principal) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use crate::canister::Oracular;
-
     use candid::Principal;
     use ic_canister::{canister_call, Canister};
     use ic_exports::ic_kit::mock_principals::alice;
     use ic_exports::ic_kit::MockContext;
 
     use super::*;
+    use crate::canister::Oracular;
 
     pub fn oracular_principal_mock() -> Principal {
         const MOCK_PRINCIPAL: &str = "sgymv-uiaaa-aaaaa-aaaia-cai";
@@ -511,7 +511,6 @@ mod tests {
         canister_call!(
             canister.init(InitData {
                 owner: Principal::management_canister(),
-                ic_eth_rpc: None
             }),
             ()
         )
@@ -539,68 +538,4 @@ mod tests {
 
         assert!(res.is_ok());
     }
-
-    #[tokio::test]
-    async fn test_set_eth_principal_anonymous() {
-        let (mut canister, ctx) = init_canister().await;
-
-        let res = canister_call!(canister.set_eth_principal(Principal::anonymous()), ())
-            .await
-            .unwrap();
-
-        assert!(res.is_err());
-
-        ctx.update_id(Principal::management_canister());
-
-        let res = canister_call!(canister.set_eth_principal(alice()), ())
-            .await
-            .unwrap();
-
-        assert!(res.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_set_eth_principal() {
-        let (mut canister, ctx) = init_canister().await;
-
-        ctx.update_id(Principal::management_canister());
-
-        let res = canister_call!(canister.set_eth_principal(alice()), ())
-            .await
-            .unwrap();
-
-        assert!(res.is_ok());
-
-        let res = canister_call!(canister.eth_principal(), ()).await.unwrap();
-
-        assert_eq!(res, alice());
-    }
-
-    // #[tokio::test]
-    // async fn create_oracle() {
-    //     let (mut canister, ctx) = init_canister().await;
-
-    //     ctx.update_id(Principal::management_canister());
-
-    //     let res =
-    //         canister_call!(canister.create_oracle(
-    //         Origin::Http(
-    //             "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
-    //                 .to_string()
-    //         ),
-    //         "latestPrice".to_string(),
-    //         Some("price".to_string()),
-    //         300,
-    //         EvmDestination {
-    //             contract: H160::from_slice(&[5]),
-    //             provider: InitProvider {
-    //                 hostname: "https://api.coingecko.com/api/v3".to_string(),
-    //                 chain_id: 1,
-    //                 credential_path: "/path/to/credential".to_string(),
-    //             }
-    //         }
-    //     ),())
-    //         .await
-    //         .unwrap();
-    // }
 }

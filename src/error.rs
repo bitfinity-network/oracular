@@ -24,6 +24,9 @@ pub enum Error {
     OracleAlreadyExists,
     #[error(transparent)]
     ParseError(#[from] parser::ParseError),
+
+    #[error("json rpc error : {0}")]
+    JsonRpcError(String),
 }
 
 impl From<String> for Error {
@@ -37,5 +40,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl From<ic_canister_client::CanisterClientError> for Error {
     fn from(value: ic_canister_client::CanisterClientError) -> Self {
         Self::IcClient(value.to_string())
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Self::Internal(value.to_string())
     }
 }

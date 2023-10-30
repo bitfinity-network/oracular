@@ -8,14 +8,14 @@ use candid::{Encode, Principal};
 use ic_canister_client::StateMachineCanisterClient;
 use ic_exports::ic_kit::mock_principals::{alice, bob, john};
 use ic_exports::ic_test_state_machine::StateMachine;
+use once_cell::sync::Lazy;
+use tokio::sync::{Mutex, MutexGuard, OnceCell};
 
 use super::{TestCanisters, TestContext};
 use crate::context::oracular_init_data;
 use crate::utils::error::Result;
 use crate::utils::get_state_machine_bin_path;
-use crate::utils::wasm::{get_eth_rpc_bytecode, get_oracular_canister_bytecode};
-use once_cell::sync::Lazy;
-use tokio::sync::{Mutex, MutexGuard, OnceCell};
+use crate::utils::wasm::get_oracular_canister_bytecode;
 pub struct StateMachineTestContext {
     pub env: Arc<Mutex<StateMachine>>,
     pub canisters: TestCanisters,
@@ -27,6 +27,10 @@ impl StateMachineTestContext {
         let canisters = StateMachineTestContext::deploy_canisters(&env, Self::admin()).await;
         let env = Arc::new(Mutex::new(env));
         StateMachineTestContext { env, canisters }
+    }
+
+    pub fn env(&self) -> Arc<Mutex<StateMachine>> {
+        self.env.clone()
     }
 
     pub fn admin() -> Principal {
@@ -41,20 +45,15 @@ impl StateMachineTestContext {
         let ctx = MutexGuard::map(ctx, |cell| cell.get_mut().unwrap());
 
         ctx.reinstall_oracular_canister().await.unwrap();
-        ctx.reinstall_eth_rpc_canister().await.unwrap();
 
         ctx
     }
 
     async fn deploy_canisters(env: &StateMachine, admin: Principal) -> TestCanisters {
-        let ic_eth_rpc_canister = deploy_ic_eth_rpc_canister(env, admin).await.unwrap();
-        let oracle_canister = deploy_oracular_canister(env, admin, ic_eth_rpc_canister)
-            .await
-            .unwrap();
+        let oracle_canister = deploy_oracular_canister(env, admin).await.unwrap();
 
         TestCanisters {
             oracular: oracle_canister,
-            ic_eth_rpc: ic_eth_rpc_canister,
         }
     }
 
@@ -142,33 +141,14 @@ impl fmt::Debug for StateMachineTestContext {
     }
 }
 
-async fn deploy_oracular_canister(
-    env: &StateMachine,
-    admin: Principal,
-    ic_eth: Principal,
-) -> Result<Principal> {
+async fn deploy_oracular_canister(env: &StateMachine, admin: Principal) -> Result<Principal> {
     let wasm = get_oracular_canister_bytecode().await;
     println!("Creating Oracular canister");
-    let init_data = oracular_init_data(admin, ic_eth);
+    let init_data = oracular_init_data(admin);
     let payload = Encode!(&init_data)?;
     let oracular_canister = env.create_canister(Some(admin));
     env.add_cycles(oracular_canister, u128::MAX);
     env.install_canister(oracular_canister, wasm, payload, Some(admin));
     println!("Oracular Canister created {oracular_canister}");
     Ok(oracular_canister)
-}
-
-async fn deploy_ic_eth_rpc_canister(env: &StateMachine, admin: Principal) -> Result<Principal> {
-    let wasm = get_eth_rpc_bytecode().await;
-    println!("Creating ETH RPC canister");
-    let ic_eth_rpc_canister = env.create_canister(Some(admin));
-    env.add_cycles(ic_eth_rpc_canister, u128::MAX);
-    env.install_canister(
-        ic_eth_rpc_canister,
-        wasm,
-        Encode!(&()).unwrap(),
-        Some(admin),
-    );
-    println!("ETH RPC Canister created {ic_eth_rpc_canister}");
-    Ok(ic_eth_rpc_canister)
 }

@@ -1,14 +1,13 @@
-mod oracle_storage;
+pub mod oracle_storage;
 mod settings;
 mod signer;
 
 use candid::Principal;
+pub use oracle_storage::UpdateOracleMetadata;
 
 use self::oracle_storage::OracleStorage;
 pub use self::settings::Settings;
 use self::signer::SignerInfo;
-
-pub use oracle_storage::UpdateOracleMetadata;
 
 #[derive(Debug, Default, Clone)]
 pub struct State {
@@ -40,14 +39,6 @@ impl State {
 
     pub fn oracle_storage(&self) -> &OracleStorage {
         &self.oracle_storage
-    }
-
-    pub fn ic_eth(&self) -> Principal {
-        Settings::read(|s| s.ic_eth)
-    }
-
-    pub fn set_ic_eth(&mut self, ic_eth: Principal) {
-        Settings::update(|s| s.ic_eth = ic_eth);
     }
 
     pub fn signer(&self) -> &SignerInfo {

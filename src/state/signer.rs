@@ -1,12 +1,10 @@
 use candid::CandidType;
 use did::error::EvmError;
-
 use did::transaction::Signature;
 use did::H160;
 use eth_signer::ic_sign::{DerivationPath, SigningKeyId};
 use eth_signer::sign_strategy::{IcSigner, TransactionSigner};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-
 use serde::Deserialize;
 
 /// A component that provides the access to the signer
@@ -29,7 +27,7 @@ impl OracleSigner {
     fn new(address: H160) -> Self {
         let address_to_bytes = address.0.as_bytes().to_vec();
         Self {
-            key_id: SigningKeyId::Test,
+            key_id: SigningKeyId::Dfx,
             derivation_path: vec![address_to_bytes],
         }
     }

@@ -1,15 +1,14 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
 
-use crate::error::{Error, Result};
-use crate::eth_rpc::Source;
-use crate::state::{Settings, State};
-
 use did::{Transaction, H160, U256};
 use eth_signer::sign_strategy::TransactionSigner;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ic_canister_client::CanisterClient;
-use ic_canister_client::IcCanisterClient;
+
+use crate::error::{Error, Result};
+use crate::eth_rpc::Source;
+use crate::http;
+use crate::state::{Settings, State};
 
 /// Context to access the external traits
 pub trait Context {
@@ -18,8 +17,6 @@ pub trait Context {
 
     /// Returns mutable state reference
     fn mut_state(&self) -> RefMut<'_, State>;
-
-    fn get_ic_eth_client(&self) -> Rc<IcCanisterClient>;
 
     /// Resets context state to the default one
     fn reset(&mut self) {
@@ -40,18 +37,12 @@ impl Context for ContextImpl {
     fn mut_state(&self) -> RefMut<'_, State> {
         self.state.borrow_mut()
     }
-
-    fn get_ic_eth_client(&self) -> Rc<IcCanisterClient> {
-        Rc::new(IcCanisterClient::new(self.state.borrow().ic_eth()))
-    }
 }
 
 pub fn get_base_context(context: &Rc<RefCell<impl Context + 'static>>) -> Rc<RefCell<dyn Context>> {
     let context: Rc<RefCell<dyn Context>> = context.clone();
     context
 }
-
-const DEFAULT_GAS_LIMIT: u64 = 30_000_000;
 
 pub async fn get_transaction(
     user_address: H160,
@@ -66,12 +57,16 @@ pub async fn get_transaction(
     // let context = context.borrow();
     // ...
     // drop(context); // before the first await point
-    let (signer, eth_client) = {
+    let signer = {
         let context = context.borrow();
         let signer = context.get_state().signer.get_oracle_signer(user_address);
-        let eth_client = context.get_ic_eth_client();
 
-        (signer, eth_client)
+        signer
+    };
+
+    let (hostname, chain_id) = match source {
+        Source::Service { chain_id, hostname } => (hostname, chain_id.unwrap_or_default()),
+        _ => unreachable!(),
     };
 
     let from = signer
@@ -79,44 +74,47 @@ pub async fn get_transaction(
         .await
         .map_err(|e| Error::from(format!("failed to get address: {e}")))?;
 
-    let json_rpc_payload = format!(
-        r#"[{{"jsonrpc":"2.0","id":"67","method":"eth_getTransactionCount","params":["{:?}"]}}]"#,
-        from
-    );
+    let nonce = http::call_jsonrpc(
+        &hostname,
+        "eth_getTransactionCount",
+        serde_json::json!([from, "latest"]),
+        Some(8000),
+    )
+    .await?;
 
-    // Get the nonce
-    let nonce = eth_client
-        .update::<(Source, String, u64), String>(
-            "request",
-            (source.clone(), json_rpc_payload, 80000),
-        )
-        .await?;
+    let nonce: U256 = serde_json::from_value(nonce)?;
 
-    let nonce = U256::from_hex_str(&nonce)?;
+    let gas_price = http::call_jsonrpc(
+        &hostname,
+        "eth_gasPrice",
+        serde_json::Value::Null,
+        Some(8000),
+    )
+    .await?;
 
-    let json_rpc_payload =
-        r#"[{"jsonrpc":"2.0","id":"67","method":"eth_gasPrice","params":[""]}]"#.to_string();
+    let gas_price: U256 = serde_json::from_value(gas_price)?;
 
-    // Get the nonce
-    let gas_price = eth_client
-        .update::<(Source, String, u64), String>(
-            "request",
-            (source.clone(), json_rpc_payload, 80000),
-        )
-        .await?;
+    let gas = http::call_jsonrpc(
+        &hostname,
+        "eth_estimateGas",
+        serde_json::json!([{
+            "from": from,
+            "to": to,
+            "value": value,
+            "data": hex::encode(data.clone()),
+        }]),
+        Some(8000),
+    )
+    .await?;
 
-    let gas_price = U256::from_hex_str(&gas_price)?;
+    let gas: U256 = serde_json::from_value(gas)?;
 
-    let chain_id = match source {
-        Source::Service { chain_id, .. } => chain_id.unwrap_or_default(),
-        _ => unreachable!(),
-    };
     let mut transaction = ethers_core::types::Transaction {
         from: from.into(),
         to: to.map(Into::into),
         nonce: nonce.0,
         value: value.0,
-        gas: DEFAULT_GAS_LIMIT.into(),
+        gas: gas.into(),
         gas_price: Some(gas_price.into()),
         input: data.into(),
         chain_id: Some(chain_id.into()),

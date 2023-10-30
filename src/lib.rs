@@ -9,6 +9,10 @@ mod memory;
 mod parser;
 mod state;
 
+pub mod constants;
+
+pub mod gen;
+
 pub fn idl() -> String {
     let oracle_idl = Oracular::idl();
 

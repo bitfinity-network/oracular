@@ -31,14 +31,6 @@ initialize_env() {
     fi
 }
 
-# Function to download files
-download_file() {
-    local url="$1"
-    local output_path="$2"
-    echo "Downloading $url to $output_path"
-    curl -LJ -o "$output_path" "$url"
-}
-
 # Function to build canisters
 build_canister() {
     local package_name="$1"
@@ -56,15 +48,9 @@ build_canister() {
     gzip -k "$wasm_dir/$output_wasm" --force
 }
 
-get_eth_rpc_binaries() {
-    download_file "https://github.com/internet-computer-protocol/ic-eth-rpc/releases/latest/download/eth_rpc_dev.wasm.gz" "$WASM_DIR/eth_rpc_dev.wasm.gz"
-    download_file "https://github.com/internet-computer-protocol/ic-eth-rpc/releases/latest/download/eth_rpc.did" "$WASM_DIR/eth_rpc.did"
-}
-
 main() {
-    initialize_env
+    # initialize_env
     echo "Getting ETH RPC Binaries"
-    get_eth_rpc_binaries
     echo "Building WASM modules"
     build_canister "oracular" "export-api" "$WASM_DIR" "oracular.wasm" "oracular"
 
