@@ -11,21 +11,19 @@ use crate::memory::{MemoryType, MEMORY_MANAGER, SETTINGS_MEMORY_ID};
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct Settings {
     pub owner: Principal,
-    pub ic_eth: Principal,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             owner: Principal::management_canister(),
-            ic_eth: Principal::management_canister(),
         }
     }
 }
 
 impl Settings {
-    pub fn new(owner: Principal, ic_eth: Principal) -> Self {
-        Self { owner, ic_eth }
+    pub fn new(owner: Principal) -> Self {
+        Self { owner }
     }
 
     pub fn read<F, T>(f: F) -> T

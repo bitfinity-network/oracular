@@ -23,8 +23,9 @@ contract PriceFeed is AggregatorV2V3Interface, Ownable {
     constructor(
         string memory _description,
         uint8 _decimals,
-        uint256 _version
-    ) Ownable(msg.sender) {
+        uint256 _version,
+        address _owner
+    ) Ownable(_owner) {
         pairDescription = _description;
         pairDecimals = _decimals;
         pairVersion = _version;

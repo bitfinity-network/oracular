@@ -3,7 +3,7 @@
 use std::env;
 use std::path::PathBuf;
 
-use ethers_solc::{Project, ProjectPathsConfig};
+use ethers::solc::{Project, ProjectPathsConfig};
 
 fn compile(
     root: &PathBuf,

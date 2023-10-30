@@ -3,52 +3,22 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use candid::CandidType;
-
 use did::H160;
 use ic_exports::ic_cdk_timers::TimerId;
 use ic_stable_structures::{
     Bound, ChunkSize, SlicedStorable, StableUnboundedMap, Storable, UnboundedMapStructure,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::canister::{EvmDestination, Origin};
 use crate::error::{Error, Result};
 use crate::memory::{MemoryType, MEMORY_MANAGER, ORACLE_STORAGE_MEMORY_ID};
-
-use serde::Serialize;
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OracleMetadata {
-    pub origin: Origin,
-    pub timer_interval: u64,
-    pub timer_id: TimerId,
-    pub evm: EvmDestination,
-}
-
-impl Storable for VecMetadata {
-    fn to_bytes(&self) -> Cow<[u8]> {
-        did::codec::bincode_encode(&self).into()
-    }
-
-    fn from_bytes(bytes: Cow<[u8]>) -> Self {
-        did::codec::bincode_decode(&bytes)
-    }
-
-    const BOUND: Bound = Bound::Unbounded;
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct VecMetadata(BTreeMap<H160, OracleMetadata>);
-
-impl SlicedStorable for VecMetadata {
-    const CHUNK_SIZE: ChunkSize = 64;
-}
 
 /// The pair storage. Stores the pair data.
 #[derive(Debug, Default, Clone)]
 pub struct OracleStorage {}
 
 impl OracleStorage {
-    #[allow(clippy::too_many_arguments)]
     pub fn add_oracle(
         &self,
         user_address: H160,
@@ -64,7 +34,7 @@ impl OracleStorage {
 
             vec.0.insert(
                 evm.contract.clone(),
-                OracleMetadata {
+                StorableOracleMetadata {
                     origin,
                     timer_id,
                     timer_interval: timestamp,
@@ -87,16 +57,55 @@ impl OracleStorage {
             vec.0
                 .get(&evm_contract_address)
                 .cloned()
+                .map(Into::into)
                 .ok_or(Error::OracleNotFound)
         })
     }
 
-    pub fn get_oracles(&self) -> Vec<(H160, VecMetadata)> {
+    pub fn get_timer_id_by_address(
+        &self,
+        user_address: H160,
+        evm_contract_address: H160,
+    ) -> Result<TimerId> {
+        ORACLE_STORAGE.with(|storage| {
+            let storage = storage.borrow();
+
+            let vec = storage.get(&user_address).ok_or(Error::OracleNotFound)?;
+
+            vec.0
+                .get(&evm_contract_address)
+                .map(|metadata| metadata.timer_id)
+                .ok_or(Error::OracleNotFound)
+        })
+    }
+
+    pub fn get_user_oracles(&self, user_address: H160) -> Result<Vec<(H160, OracleMetadata)>> {
+        ORACLE_STORAGE.with(|storage| {
+            let storage = storage.borrow();
+
+            let vec = storage.get(&user_address).ok_or(Error::OracleNotFound)?;
+
+            Ok(vec
+                .0
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone().into()))
+                .collect())
+        })
+    }
+
+    pub fn get_oracles(&self) -> Vec<(H160, BTreeMap<H160, OracleMetadata>)> {
         ORACLE_STORAGE.with(|storage| {
             let storage = storage.borrow();
             storage
                 .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .map(|(k, v)| {
+                    (
+                        k,
+                        v.0.iter()
+                            .map(|(k, v)| (k.clone(), v.clone().into()))
+                            .collect(),
+                    )
+                })
                 .collect()
         })
     }
@@ -162,6 +171,50 @@ impl OracleStorage {
 
 thread_local! {
     static ORACLE_STORAGE: RefCell<StableUnboundedMap<H160, VecMetadata, MemoryType>> = RefCell::new(StableUnboundedMap::new(MEMORY_MANAGER.with(|mm|mm.get(ORACLE_STORAGE_MEMORY_ID))));
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorableOracleMetadata {
+    pub origin: Origin,
+    pub timer_interval: u64,
+    pub timer_id: TimerId,
+    pub evm: EvmDestination,
+}
+
+impl Storable for VecMetadata {
+    fn to_bytes(&self) -> Cow<[u8]> {
+        did::codec::bincode_encode(&self).into()
+    }
+
+    fn from_bytes(bytes: Cow<[u8]>) -> Self {
+        did::codec::bincode_decode(&bytes)
+    }
+
+    const BOUND: Bound = Bound::Unbounded;
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct VecMetadata(BTreeMap<H160, StorableOracleMetadata>);
+
+impl SlicedStorable for VecMetadata {
+    const CHUNK_SIZE: ChunkSize = 64;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
+pub struct OracleMetadata {
+    pub origin: Origin,
+    pub timer_interval: u64,
+    pub evm: EvmDestination,
+}
+
+impl From<StorableOracleMetadata> for OracleMetadata {
+    fn from(storable: StorableOracleMetadata) -> Self {
+        Self {
+            origin: storable.origin,
+            timer_interval: storable.timer_interval,
+            evm: storable.evm,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, CandidType)]
