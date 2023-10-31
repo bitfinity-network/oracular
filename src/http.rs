@@ -81,6 +81,8 @@ async fn http_outcall(
     cost: u128,
     max_response_bytes: Option<u64>,
 ) -> Result<MHttpResponse> {
+    log::debug!("http_outcall url: {}, method: {:?}, ", url, method);
+
     let real_url = Url::parse(url).map_err(|e| Error::Http(e.to_string()))?;
 
     let host = real_url
@@ -133,6 +135,12 @@ pub async fn call_jsonrpc(
     params: Value,
     max_response_bytes: Option<u64>,
 ) -> Result<Value> {
+    log::debug!(
+        "calling json_rpc url: {}, method: {}, params: {}",
+        url,
+        method,
+        params
+    );
     let body = serde_json::to_vec(&serde_json::json!({
         "jsonrpc": "2.0",
         "id": 1,
@@ -170,6 +178,8 @@ pub async fn call_jsonrpc(
 }
 
 pub async fn get_price(url: &str, json_path: &str) -> Result<U256> {
+    log::debug!("getting price url: {}, json_path: {}", url, json_path);
+
     let cost = get_request_costs(url, 0, 8000);
     let res = http_outcall(url, HttpMethod::GET, None, cost, Some(8000)).await?;
 
@@ -190,7 +200,9 @@ pub async fn get_price(url: &str, json_path: &str) -> Result<U256> {
         .as_str()
         .map(|s| s.parse::<f64>())
         .ok_or_else(|| Error::Internal(format!("price is not a f64, price: {}", price)))?
-        .unwrap();
+        .map_err(|e| {
+            Error::Internal(format!("price is not a f64, price: {}, err: {}", price, e))
+        })?;
 
     let price_u64 = (price_f64 * PRICE_MULTIPLE).round() as u64;
 

@@ -11,7 +11,7 @@ create_oracle_evm() {
                     hostname = \"https://eth-mainnet.alchemyapi.io/v2/demo\";
 
                 };
-                target_address = \"0xf4030086522a5beea4988f8ca5b36dbc97bee88c\";
+                target_address = \"0x2c1d072e956affc0d435cb7ac38ef18d24d9127c\";
                 method = \"latestAnswer\";
             }
         },
@@ -20,7 +20,7 @@ create_oracle_evm() {
             contract = \"0x5d1fe823127eE6381D3b4752cF56B41373e198a2\";
             provider = record {
                 chain_id = 355113;
-                hostname = \"https://clean-pillows-stare.loca.lt/?canisterId=bkyz2-fmaaa-aaaaa-qaaaq-cai\";
+                hostname = \"https://stupid-garlics-fail.loca.lt/?canisterId=bkyz2-fmaaa-aaaaa-qaaaq-cai\";
             }
         }
     )"

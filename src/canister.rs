@@ -17,6 +17,8 @@ use ic_exports::ic_cdk::api::management_canister::http_request::{
 };
 use ic_exports::ic_cdk_timers::TimerId;
 use ic_exports::ic_kit::ic;
+use ic_log::{init_log, LogSettings};
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 use serde_json::Value;
@@ -24,6 +26,7 @@ use serde_json::Value;
 use crate::context::{get_base_context, Context, ContextImpl};
 use crate::error::{Error, Result};
 use crate::http::{self, transform, HttpRequest, HttpResponse};
+use crate::log::LoggerConfigService;
 use crate::provider::{self, get_transaction, Provider, UPDATE_PRICE};
 use crate::state::oracle_storage::OracleMetadata;
 use crate::state::{Settings, State, UpdateOracleMetadata};
@@ -43,10 +46,12 @@ pub struct Oracular {
 impl PreUpdate for Oracular {}
 
 /// The init data that will be used to initialize the canister
-#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+#[derive(Debug, Clone, CandidType, Deserialize)]
 pub struct InitData {
     /// The owner of the canister
     pub owner: Principal,
+    #[serde(default)]
+    pub log_settings: Option<LogSettings>,
 }
 
 impl Oracular {
@@ -62,8 +67,21 @@ impl Oracular {
         res
     }
 
+    pub fn logger_config_service(&self) -> LoggerConfigService {
+        LoggerConfigService::default()
+    }
+
     #[init]
     pub fn init(&mut self, data: InitData) {
+        match init_log(&data.log_settings.clone().unwrap_or_default()) {
+            Ok(logger_config) => self.logger_config_service().init(logger_config),
+            Err(err) => {
+                ic_exports::ic_cdk::println!("error configuring the logger. Err: {:?}", err)
+            }
+        }
+
+        info!("starting oracular canister");
+
         let settings = Settings::new(data.owner);
 
         check_anonymous_principal(data.owner).expect("invalid owner");
@@ -86,6 +104,31 @@ impl Oracular {
 
         self.with_state_mut(|state| state.set_owner(owner));
         Ok(())
+    }
+
+    /// Updates the runtime configuration of the logger with a new filter in the same form as the `RUST_LOG`
+    /// environment variable.
+    /// Example of valid filters:
+    /// - info
+    /// - debug,crate1::mod1=error,crate1::mod2,crate2=debug
+    #[update]
+    pub fn set_logger_filter(&mut self, filter: String) -> Result<()> {
+        self.check_owner(ic::caller())?;
+        self.logger_config_service().set_logger_filter(&filter)?;
+
+        debug!("updated logger filter to {filter}");
+
+        Ok(())
+    }
+
+    /// Gets the logs
+    /// - `count` is the number of logs to return
+    #[update]
+    pub fn ic_logs(&self, count: usize) -> Result<Vec<String>> {
+        self.check_owner(ic::caller())?;
+
+        // Request execution
+        Ok(ic_log::take_memory_records(count))
     }
 
     #[query]
@@ -163,6 +206,8 @@ impl Oracular {
 
     #[update]
     pub async fn http_request_update(&self, req: HttpRequest) -> HttpResponse {
+        log::debug!("start http_request_update: {:?}", req);
+
         let body = serde_json::from_slice::<Value>(&req.body)
             .map_err(|e| Error::Http(format!("serde_json err: {}", e)))
             .and_then(|body| {
@@ -296,6 +341,8 @@ impl Oracular {
         timestamp: u64,
         destination: EvmDestination,
     ) -> Result<()> {
+        log::debug!("creating new oracle: {:?}", origin);
+
         // Start the timer
         let timer_id = Self::init_price_timer(
             get_base_context(&self.context.0),
@@ -334,11 +381,11 @@ impl Oracular {
                 let future = Self::send_transaction(
                     origin.clone(),
                     user_address.0.into(),
-                    context.clone(),
                     evm.clone(),
+                    context.clone(),
                 )
                 .unwrap_or_else(|e| {
-                    ic::print(format!("failed to send transaction: {:?}", e.to_string()))
+                    log::error!("failed to send transaction: {:?}", e.to_string());
                 });
 
                 ic_cdk::spawn(future);
@@ -352,9 +399,16 @@ impl Oracular {
     async fn send_transaction(
         origin: Origin,
         user_address: H160,
-        context: Rc<RefCell<dyn Context>>,
         evm_destination: EvmDestination,
+        context: Rc<RefCell<dyn Context>>,
     ) -> Result<()> {
+        log::debug!(
+            "Updating oracle price: user_address :{} origin: {:?} evm_destination: {:?} ",
+            user_address,
+            origin,
+            evm_destination
+        );
+
         let response = match origin {
             Origin::Evm(EvmOrigin {
                 ref provider,
@@ -410,12 +464,13 @@ impl Oracular {
 
         let params = serde_json::json!([format!("0x{}", hex::encode(transaction.rlp()))]);
 
-        let response =
+        let tx_hash =
             http::call_jsonrpc(hostname, "eth_sendRawTransaction", params, Some(80000)).await?;
 
-        let response = serde_json::from_value::<H256>(response)?;
+        let tx_hash = serde_json::from_value::<H256>(tx_hash)?;
 
-        ic_cdk::print(format!("response: {:?}", response));
+        log::debug!("transaction hash: {:?}", tx_hash);
+
         Ok(())
     }
 
@@ -505,6 +560,7 @@ mod tests {
         canister_call!(
             canister.init(InitData {
                 owner: Principal::management_canister(),
+                log_settings: None,
             }),
             ()
         )

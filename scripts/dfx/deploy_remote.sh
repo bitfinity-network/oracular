@@ -18,13 +18,15 @@ entry_point() {
 
     OWNER=$(dfx identity get-principal)
 
+    LOG_SETTINGS="opt record { enable_console=false; in_memory_records=opt 1024; log_filter=opt \"off\"; }"
+
     if [ "$INSTALL_MODE" = "create" ]; then
         create "$NETWORK"
         INSTALL_MODE="install"
-        deploy "$NETWORK" "$INSTALL_MODE" "$OWNER"
+        deploy "$NETWORK" "$INSTALL_MODE" "$OWNER" "$LOG_SETTINGS"
 
     elif [ "$INSTALL_MODE" = "upgrade" ] || [ "$INSTALL_MODE" = "reinstall" ]; then
-        deploy "$NETWORK" "$INSTALL_MODE" "$OWNER"
+        deploy "$NETWORK" "$INSTALL_MODE" "$OWNER" "$LOG_SETTINGS"
     else
         echo "Command Not Found!"
         exit 1

@@ -10,6 +10,7 @@ pub mod provider;
 mod state;
 
 pub mod constants;
+pub mod log;
 
 pub fn idl() -> String {
     let oracle_idl = Oracular::idl();

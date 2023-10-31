@@ -53,7 +53,10 @@ pub trait TestContext {
 }
 
 pub fn oracular_init_data(owner: Principal) -> InitData {
-    InitData { owner }
+    InitData {
+        owner,
+        log_settings: None,
+    }
 }
 
 #[derive(Debug, Clone)]

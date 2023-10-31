@@ -16,10 +16,11 @@ deploy() {
     NETWORK=$1
     INSTALL_MODE=$2
     OWNER=$3
+    LOG_SETTINGS=$4
 
     dfx build --network=$NETWORK
 
-    deploy_oracular_canister "$NETWORK" "$INSTALL_MODE" "$OWNER"
+    deploy_oracular_canister "$NETWORK" "$INSTALL_MODE" "$OWNER" "$LOG_SETTINGS"
 
     oracular=$(dfx canister --network=$NETWORK id oracular)
 
@@ -31,9 +32,11 @@ deploy_oracular_canister() {
     NETWORK=$1
     INSTALL_MODE=$2
     OWNER=$3
+    LOG_SETTINGS=$4
 
     oracular_init="(record {
         owner=principal \"$OWNER\";
+        log_settings=$LOG_SETTINGS;
     })"
 
     echo "Deploying EVM canister with init args: $oracular_init"
