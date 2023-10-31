@@ -127,7 +127,6 @@ impl Oracular {
     pub fn ic_logs(&self, count: usize) -> Result<Vec<String>> {
         self.check_owner(ic::caller())?;
 
-        // Request execution
         Ok(ic_log::take_memory_records(count))
     }
 
@@ -243,14 +242,20 @@ impl Oracular {
                 match address {
                     Ok(address) => HttpResponse::new(
                         200,
-                        HashMap::from([("content-type", "text/plain")]),
+                        HashMap::from([("content-type".into(), "text/plain".into())]),
                         ByteBuf::from(address.0.as_bytes()),
                         None,
                     ),
-                    Err(e) => HttpResponse::error(400, e.to_string()),
+                    Err(e) => {
+                        log::error!("failed to get address: {:?}", e.to_string());
+                        HttpResponse::error(400, e.to_string())
+                    }
                 }
             }
-            Err(e) => HttpResponse::error(400, e.to_string()),
+            Err(e) => {
+                log::error!("failed to recover public key: {:?}", e.to_string());
+                HttpResponse::error(400, e.to_string())
+            }
         }
     }
 
@@ -301,6 +306,7 @@ impl Oracular {
                 .oracle_storage()
                 .get_timer_id_by_address(user_address.0.into(), contract_address.clone())
         })?;
+
         ic_exports::ic_cdk_timers::clear_timer(timer_id);
 
         let timer_id = Self::init_price_timer(
@@ -319,6 +325,25 @@ impl Oracular {
                 Some(timer_id),
                 metadata,
             )
+        })?;
+
+        Ok(())
+    }
+
+    #[update]
+    pub fn delete_oracle(&mut self, user_address: H160, contract_address: H160) -> Result<()> {
+        let timer_id = self.with_state(|state| {
+            state
+                .oracle_storage()
+                .get_timer_id_by_address(user_address.0.into(), contract_address.clone())
+        })?;
+
+        ic_exports::ic_cdk_timers::clear_timer(timer_id);
+
+        self.with_state_mut(|state| {
+            state
+                .mut_oracle_storage()
+                .remove_oracle_by_address(user_address, contract_address)
         })?;
 
         Ok(())
@@ -363,6 +388,8 @@ impl Oracular {
                 destination,
             )
         });
+
+        log::debug!("oracle created successfully ");
 
         Ok(())
     }
@@ -434,22 +461,16 @@ impl Oracular {
             }) => http::get_price(url, json_path).await?,
         };
 
-        let (ref hostname, ref chain_id) = match origin {
-            Origin::Evm(_) => (
-                &evm_destination.provider.hostname,
-                evm_destination.provider.chain_id,
-            ),
-            Origin::Http(_) => (
-                &evm_destination.provider.hostname,
-                evm_destination.provider.chain_id,
-            ),
-        };
+        let (hostname, chain_id) = (
+            evm_destination.provider.hostname,
+            evm_destination.provider.chain_id,
+        );
 
         let data = UPDATE_PRICE.encode_input(&[ethabi::Token::Int(response.into())])?;
 
         let provider = Provider {
-            chain_id: *chain_id,
-            hostname: hostname.to_string(),
+            chain_id,
+            hostname: hostname.to_owned(),
         };
 
         let transaction = get_transaction(
@@ -465,7 +486,7 @@ impl Oracular {
         let params = serde_json::json!([format!("0x{}", hex::encode(transaction.rlp()))]);
 
         let tx_hash =
-            http::call_jsonrpc(hostname, "eth_sendRawTransaction", params, Some(80000)).await?;
+            http::call_jsonrpc(&hostname, "eth_sendRawTransaction", params, Some(80000)).await?;
 
         let tx_hash = serde_json::from_value::<H256>(tx_hash)?;
 
@@ -491,7 +512,7 @@ impl Oracular {
 }
 
 /// This is the origin of the data that will be used to update the price
-#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Origin {
     /// EVM origin
     Evm(EvmOrigin),
@@ -500,7 +521,7 @@ pub enum Origin {
 }
 
 /// EVM origin data
-#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EvmOrigin {
     /// The EVM provider that will be used to fetch the data
     pub provider: Provider,
@@ -511,7 +532,7 @@ pub struct EvmOrigin {
 }
 
 /// HTTP origin data that will be used to fetch the data from the given URL
-#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HttpOrigin {
     /// The URL that will be used to fetch the data
     pub url: String,
@@ -520,7 +541,7 @@ pub struct HttpOrigin {
 }
 
 /// This is the destination of the data that will be used to update the price
-#[derive(Debug, Clone, CandidType, Serialize, Deserialize)]
+#[derive(Debug, Clone, CandidType, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EvmDestination {
     /// The address of the contract that will be called
     pub contract: H160,
@@ -587,5 +608,33 @@ mod tests {
             .unwrap();
 
         assert!(res.is_ok());
+    }
+
+    #[test]
+    pub fn test_recover_pub_key_with_correct_payload() {
+        let message = "Testing".to_string();
+        let signature =
+        "0x4bce59ed739b43e739f304cb790cacde57b800aa712dde352cc8aa4f4727979d3849a8c52f59c34083f5060b4f1630ad7d34902a68ae216431332f27b830953b1b".to_string();
+
+        let expected_address =
+            H160::from_hex_str("0xE757Bd3f57C51D2068742d0CEA6f49D38d567310").unwrap();
+
+        let address = Oracular::recover_pubkey(message, signature).unwrap();
+
+        assert_eq!(address, expected_address);
+    }
+
+    #[test]
+    pub fn test_recover_pub_key_with_incorrect_payload() {
+        let message = "Testing 123".to_string();
+        let signature =
+        "0x4bce59ed739b43e739f304cb790cacde57b800aa712dde352cc8aa4f4727979d3849a8c52f59c34083f5060b4f1630ad7d34902a68ae216431332f27b830953b1b".to_string();
+
+        let expected_address =
+            H160::from_hex_str("0xE757Bd3f57C51D2068742d0CEA6f49D38d567310").unwrap();
+
+        let address = Oracular::recover_pubkey(message, signature).unwrap();
+
+        assert_ne!(address, expected_address);
     }
 }

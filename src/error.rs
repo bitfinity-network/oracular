@@ -29,6 +29,9 @@ pub enum Error {
 
     #[error("json rpc error : {0}")]
     JsonRpcError(String),
+
+    #[error("user not found")]
+    UserNotFound,
 }
 
 impl From<String> for Error {

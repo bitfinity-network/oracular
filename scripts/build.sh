@@ -43,7 +43,7 @@ build_canister() {
 }
 
 main() {
-    # initialize_env
+    initialize_env
 
     echo "Building WASM modules"
     build_canister "oracular" "export-api" "$WASM_DIR" "oracular.wasm" "oracular"

@@ -1,18 +1,17 @@
-use crate::canister::Oracular;
-
 pub mod canister;
+pub mod constants;
 mod context;
 pub mod error;
-mod http;
+pub mod http;
+pub mod log;
 mod memory;
 mod parser;
 pub mod provider;
-mod state;
-
-pub mod constants;
-pub mod log;
+pub mod state;
 
 pub fn idl() -> String {
+    use crate::canister::Oracular;
+
     let oracle_idl = Oracular::idl();
 
     candid::bindings::candid::compile(&oracle_idl.env.env, &Some(oracle_idl.actor))

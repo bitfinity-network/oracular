@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 
-use crate::error::Error;
 use ic_log::LoggerConfig;
+
+use crate::error::Error;
 
 thread_local! {
     static LOGGER_CONFIG: RefCell<Option<LoggerConfig>> = RefCell::new(None);

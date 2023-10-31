@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 use candid::CandidType;
 use did::U256;
-
 use ic_exports::ic_cdk::api::management_canister::http_request::{
     http_request, CanisterHttpRequestArgument, HttpHeader, HttpMethod,
     HttpResponse as MHttpResponse, TransformArgs, TransformContext,
@@ -37,22 +36,35 @@ pub struct HttpRequest {
 }
 
 /// A HTTP response.
-#[derive(Clone, Debug, CandidType)]
+#[derive(Clone, Debug, CandidType, Deserialize)]
 pub struct HttpResponse {
     /// The HTTP status code.
     pub status_code: u16,
     /// The response header map.
-    pub headers: HashMap<&'static str, &'static str>,
+    pub headers: HashMap<Cow<'static, str>, Cow<'static, str>>,
     /// The response body.
     pub body: ByteBuf,
     /// Whether the query call should be upgraded to an update call.
     pub upgrade: Option<bool>,
 }
 
+impl HttpRequest {
+    pub fn new(data: Value) -> Self {
+        let mut headers = HashMap::new();
+        headers.insert("content-type".into(), "application/json".into());
+        Self {
+            method: "POST".into(),
+            url: "".into(),
+            headers,
+            body: ByteBuf::from(serde_json::to_vec(&data).unwrap()),
+        }
+    }
+}
+
 impl HttpResponse {
     pub fn new(
         status_code: u16,
-        headers: HashMap<&'static str, &'static str>,
+        headers: HashMap<Cow<'static, str>, Cow<'static, str>>,
         body: ByteBuf,
         upgrade: Option<bool>,
     ) -> Self {

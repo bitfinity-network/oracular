@@ -14,7 +14,7 @@ use crate::context::Context;
 use crate::error::{Error, Result};
 use crate::http;
 
-#[derive(Debug, CandidType, Deserialize, Serialize, Clone)]
+#[derive(Debug, CandidType, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct Provider {
     pub chain_id: u64,
     pub hostname: String,

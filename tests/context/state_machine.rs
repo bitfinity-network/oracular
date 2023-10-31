@@ -145,6 +145,7 @@ async fn deploy_oracular_canister(env: &StateMachine, admin: Principal) -> Resul
     let wasm = get_oracular_canister_bytecode().await;
     println!("Creating Oracular canister");
     let init_data = oracular_init_data(admin);
+
     let payload = Encode!(&init_data)?;
     let oracular_canister = env.create_canister(Some(admin));
     env.add_cycles(oracular_canister, u128::MAX);

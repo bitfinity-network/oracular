@@ -3,6 +3,7 @@ pub mod state_machine;
 use candid::utils::ArgumentEncoder;
 use candid::Principal;
 use ic_canister_client::CanisterClient;
+use ic_log::LogSettings;
 use oracular::canister::InitData;
 
 use crate::utils::error::Result;
@@ -55,7 +56,11 @@ pub trait TestContext {
 pub fn oracular_init_data(owner: Principal) -> InitData {
     InitData {
         owner,
-        log_settings: None,
+        log_settings: Some(LogSettings {
+            enable_console: true,
+            in_memory_records: Some(1000),
+            log_filter: Some("debug".to_string()),
+        }),
     }
 }
 
