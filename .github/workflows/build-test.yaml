@@ -1,0 +1,39 @@
+name: 'Build and Deploy'
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**/README.md'
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+    paths-ignore:
+      - '**/README.md'
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: 'Build and Test'
+    uses: bitfinity-network/ci-wf/.github/workflows/build-n-test.yml@main
+    with:
+      runs-on: 4x150g-runner
+      container-image: ghcr.io/bitfinity-network/ic-dev-base:rust1.72-dfx0.15
+      git-fetch-depth: '0'
+      skip-test: ${{ github.ref_type == 'tag' }}
+      audit-allow-warnings: true
+      cargo-clippy-extra-args: '-- -D warnings'
+      output-artifact: artifact-oracular
+      artifact-pre-script: |
+        ./scripts/build.sh
+      test-script: |
+        export WASMS_DIR="`pwd`/.artifact"
+        export RUST_BACKTRACE="full"
+        ./scripts/tests.sh
+      enable-target-cache: true
+      disable-cache: ${{ github.event.pull_request.base.ref == 'main' || github.ref_name == 'main' }}
+
+    secrets:
+      gh_token: ${{ secrets.GH_PKG_LOGIN }}
+      gh_login: ${{ secrets.GH_PKG_TOKEN }}

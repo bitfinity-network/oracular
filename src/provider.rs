@@ -6,7 +6,6 @@ use did::{H160, U256};
 use eth_signer::sign_strategy::TransactionSigner;
 use ethers_core::abi::{Function, Param, ParamType, StateMutability};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
