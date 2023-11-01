@@ -37,9 +37,7 @@ impl OracleStorage {
                 evm: evm.clone(),
             };
 
-            let mut map = storage
-                .get(&user_address)
-                .unwrap_or_else(MetadataCollection::default);
+            let mut map = storage.get(&user_address).unwrap_or_default();
 
             map.0.insert(evm.contract, metadata);
             storage.insert(&user_address, &map);
