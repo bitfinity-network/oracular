@@ -39,5 +39,5 @@ jobs:
       disable-cache: ${{ github.event.pull_request.base.ref == 'main' || github.ref_name == 'main' }}
 
     secrets:
-      gh_token: ${{ secrets.GH_PKG_LOGIN }}
-      gh_login: ${{ secrets.GH_PKG_TOKEN }}
+      gh_token: ${{ secrets.GH_PKG_TOKEN }}
+      gh_login: ${{ secrets.GH_PKG_LOGIN }}
