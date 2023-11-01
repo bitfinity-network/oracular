@@ -14,11 +14,12 @@ use crate::canister::{EvmDestination, Origin};
 use crate::error::{Error, Result};
 use crate::memory::{MemoryType, MEMORY_MANAGER, ORACLE_STORAGE_MEMORY_ID};
 
-/// The pair storage. Stores the pair data.
+/// Storage for Oracle metadata
 #[derive(Debug, Default, Clone)]
 pub struct OracleStorage {}
 
 impl OracleStorage {
+    /// Creates a new Oracle
     pub fn add_oracle(
         &self,
         user_address: H160,
@@ -63,6 +64,7 @@ impl OracleStorage {
         })
     }
 
+    /// Returns the timer id of the oracle
     pub fn get_timer_id_by_address(
         &self,
         user_address: H160,
@@ -202,6 +204,8 @@ impl Storable for MetadataCollection {
     const BOUND: Bound = Bound::Unbounded;
 }
 
+/// Collection of oracle metadata
+/// The key is the EVM contract address
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MetadataCollection(BTreeMap<H160, StorableOracleMetadata>);
 
@@ -209,10 +213,14 @@ impl SlicedStorable for MetadataCollection {
     const CHUNK_SIZE: ChunkSize = 64;
 }
 
+/// Struct used to store the oracle metadata
 #[derive(Debug, Clone, Serialize, Deserialize, CandidType)]
 pub struct OracleMetadata {
+    /// The origin of the oracle
     pub origin: Origin,
+    /// The interval at which the oracle should be called
     pub timer_interval: u64,
+    /// The destination of the oracle
     pub evm: EvmDestination,
 }
 
@@ -226,8 +234,8 @@ impl From<StorableOracleMetadata> for OracleMetadata {
     }
 }
 
+/// Struct used to update the oracle metadata
 #[derive(Debug, Clone, Default, Serialize, Deserialize, CandidType)]
-
 pub struct UpdateOracleMetadata {
     pub origin: Option<Origin>,
     pub evm: Option<EvmDestination>,

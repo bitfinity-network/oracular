@@ -6,7 +6,7 @@ use did::{H160, U256};
 use eth_signer::sign_strategy::TransactionSigner;
 use ethers_core::abi::{Function, Param, ParamType, StateMutability};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use ic_exports::ic_cdk;
+
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
@@ -44,9 +44,6 @@ pub async fn get_transaction(
         .get_address()
         .await
         .map_err(|e| Error::from(format!("failed to get address: {e}")))?;
-
-    // print the from address
-    ic_cdk::println!("from address : {:?}", from);
 
     let nonce = http::call_jsonrpc(
         &provider.hostname,
@@ -106,9 +103,6 @@ pub async fn get_transaction(
     transaction.v = signature.v.into();
 
     transaction.hash = transaction.hash();
-
-    // print the transaction
-    ic_cdk::println!("Transaction : {transaction:?}");
 
     Ok(transaction)
 }

@@ -30,6 +30,7 @@ use crate::log::LoggerConfigService;
 use crate::provider::{self, get_transaction, Provider, UPDATE_PRICE};
 use crate::state::oracle_storage::OracleMetadata;
 use crate::state::{Settings, State, UpdateOracleMetadata};
+
 /// Type alias for the shared mutable context implementation we use in the canister
 type SharedContext = Rc<RefCell<ContextImpl>>;
 
@@ -130,11 +131,13 @@ impl Oracular {
         Ok(ic_log::take_memory_records(count))
     }
 
+    /// Get all the oracles created
     #[query]
     pub fn get_all_oracles(&self) -> Vec<(H160, BTreeMap<H160, OracleMetadata>)> {
         self.with_state(|state| state.oracle_storage().get_oracles())
     }
 
+    /// Returns the list of oracles for the given user
     #[query]
     pub fn get_user_oracles(&self, user_address: H160) -> Result<Vec<(H160, OracleMetadata)>> {
         let oracles =
@@ -143,6 +146,8 @@ impl Oracular {
         Ok(oracles)
     }
 
+    /// Returns the address of the sender of the transaction using
+    /// the management canister
     #[update]
     pub async fn get_address(&self, address: H160) -> Result<H160> {
         let signer = {
@@ -157,6 +162,11 @@ impl Oracular {
         Ok(signer.get_address().await?)
     }
 
+    /// Returns the metadata of the given oracle
+    ///
+    /// # Arguments
+    /// * `contract_address` - The address of the contract that will be fetched
+    /// * `user_address` - The address of the user that created the oracle
     #[query]
     pub fn get_oracle_metadata(
         &self,
