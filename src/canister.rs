@@ -311,6 +311,13 @@ impl Oracular {
                 .get_oracle_by_address(user_address.0.into(), contract_address.clone())
         })?;
 
+        // Check the old owner of the oracle
+        if old_md.owner != user_address {
+            return Err(Error::Internal(
+                "caller is not the owner of the oracle".to_string(),
+            ));
+        }
+
         let timer_id = self.with_state(|state| {
             state
                 .oracle_storage()
@@ -342,6 +349,19 @@ impl Oracular {
 
     #[update]
     pub fn delete_oracle(&mut self, user_address: H160, contract_address: H160) -> Result<()> {
+        // Get the owner
+        let owner = self.with_state(|state| {
+            state
+                .oracle_storage()
+                .get_oracle_owner(user_address.0.into(), contract_address.clone())
+        })?;
+
+        if owner != user_address {
+            return Err(Error::Internal(
+                "caller is not the owner of the oracle".to_string(),
+            ));
+        }
+
         let timer_id = self.with_state(|state| {
             state
                 .oracle_storage()
@@ -621,7 +641,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_recover_pub_key_with_correct_payload() {
+    fn test_recover_pub_key_with_correct_payload() {
         let message = "Testing".to_string();
         let signature =
         "0x4bce59ed739b43e739f304cb790cacde57b800aa712dde352cc8aa4f4727979d3849a8c52f59c34083f5060b4f1630ad7d34902a68ae216431332f27b830953b1b".to_string();
@@ -635,7 +655,7 @@ mod tests {
     }
 
     #[test]
-    pub fn test_recover_pub_key_with_incorrect_payload() {
+    fn test_recover_pub_key_with_incorrect_payload() {
         let message = "Testing 123".to_string();
         let signature =
         "0x4bce59ed739b43e739f304cb790cacde57b800aa712dde352cc8aa4f4727979d3849a8c52f59c34083f5060b4f1630ad7d34902a68ae216431332f27b830953b1b".to_string();

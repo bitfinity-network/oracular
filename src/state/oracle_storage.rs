@@ -35,6 +35,7 @@ impl OracleStorage {
                 timer_id,
                 timer_interval: timestamp,
                 evm: evm.clone(),
+                owner: user_address.clone(),
             };
 
             let mut map = storage.get(&user_address).unwrap_or_default();
@@ -170,6 +171,19 @@ impl OracleStorage {
         })
     }
 
+    pub fn get_oracle_owner(&self, user_address: H160, evm_contract_address: H160) -> Result<H160> {
+        ORACLE_STORAGE.with(|storage| {
+            let storage = storage.borrow();
+
+            let vec = storage.get(&user_address).ok_or(Error::UserNotFound)?;
+
+            vec.0
+                .get(&evm_contract_address)
+                .map(|metadata| metadata.owner.clone())
+                .ok_or(Error::OracleNotFound)
+        })
+    }
+
     pub fn clear(&self) {
         ORACLE_STORAGE.with(|storage| {
             let mut storage = storage.borrow_mut();
@@ -188,6 +202,8 @@ pub struct StorableOracleMetadata {
     pub timer_interval: u64,
     pub timer_id: TimerId,
     pub evm: EvmDestination,
+    /// Owner of the oracle
+    pub owner: H160,
 }
 
 impl Storable for MetadataCollection {
@@ -220,6 +236,8 @@ pub struct OracleMetadata {
     pub timer_interval: u64,
     /// The destination of the oracle
     pub evm: EvmDestination,
+    /// Owner of the oracle
+    pub owner: H160,
 }
 
 impl From<StorableOracleMetadata> for OracleMetadata {
@@ -228,6 +246,7 @@ impl From<StorableOracleMetadata> for OracleMetadata {
             origin: storable.origin,
             timer_interval: storable.timer_interval,
             evm: storable.evm,
+            owner: storable.owner,
         }
     }
 }
@@ -760,5 +779,47 @@ mod tests {
             .unwrap();
 
         assert_eq!(oracle_metadata, timer);
+    }
+
+    #[test]
+    fn test_get_oracle_owner() {
+        let oracle_storage = OracleStorage::default();
+
+        let user_address = H160::from_slice(&[1; 20]);
+        let user_address2 = H160::from_slice(&[2; 20]);
+        let evm_contract_address = H160::from_slice(&[2; 20]);
+
+        let origin1 = Origin::Http(HttpOrigin {
+            url: String::from("https://example.com"),
+            json_path: String::from("data"),
+        });
+
+        let destination1 = EvmDestination {
+            contract: evm_contract_address.clone(),
+            provider: Provider {
+                chain_id: 1,
+                hostname: String::from("https://example.com"),
+            },
+        };
+
+        oracle_storage.add_oracle(
+            user_address.clone(),
+            origin1.clone(),
+            100,
+            TimerId::default(),
+            destination1.clone(),
+        );
+
+        let owner = oracle_storage
+            .get_oracle_owner(user_address.clone(), evm_contract_address.clone())
+            .unwrap();
+
+        assert_eq!(owner, user_address);
+
+        let owner = oracle_storage
+            .get_oracle_owner(user_address2, evm_contract_address)
+            .unwrap_err();
+
+        assert_eq!(owner, Error::UserNotFound);
     }
 }
